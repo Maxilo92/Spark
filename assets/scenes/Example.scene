@@ -1,0 +1,12 @@
+Scene: Untitled
+Entities:
+  - Entity: 5940907129634941754
+    TagComponent:
+      Tag: Test Quadrat
+    TransformComponent:
+      Translation: [0, 0, 0]
+      Rotation: [0, 0, 0]
+      Scale: [1, 1, 1]
+    SpriteRendererComponent:
+      Color: [0.2, 0.8, 0.3, 1]
+      TextureHandle: 0

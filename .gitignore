@@ -1,0 +1,29 @@
+# Build artifacts
+build/
+bin/
+lib/
+*.o
+*.a
+*.so
+*.dylib
+*.dll
+*.exe
+*.pdb
+*.suo
+*.idb
+*.ipch
+
+# Logs and temporary files
+spark.log
+imgui.ini
+.DS_Store
+crashes/
+.vscode/
+
+# Project-specific backups and copies
+assets_backup/
+assets_backup_MyNewGame/
+*.spark_backup
+
+# MacOS files
+.DS_Store
