@@ -12,6 +12,7 @@ public:
     void OnImGuiRender(bool* p_open_hierarchy = nullptr, bool* p_open_properties = nullptr);
 
     Entity GetSelectedEntity() const { return m_SelectionContext; }
+    void SetSelectedEntity(Entity entity) { m_SelectionContext = entity; }
 
 private:
     void DrawEntityNode(Entity entity);

@@ -9,6 +9,7 @@ public:
 
     void PushLayer(Layer* layer);
     void PushOverlay(Layer* overlay);
+    void PushOverlayManual(Layer* overlay); // Adds without calling OnAttach
     void PopLayer(Layer* layer);
     void PopOverlay(Layer* overlay);
 

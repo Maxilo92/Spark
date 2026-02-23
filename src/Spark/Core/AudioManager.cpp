@@ -1,5 +1,6 @@
 #include "AudioManager.h"
 #include "miniaudio.h"
+#include "Log.h"
 #include <iostream>
 
 namespace Spark {
@@ -14,10 +15,10 @@ namespace Spark {
         s_Data = std::make_unique<AudioManagerData>();
         ma_result result = ma_engine_init(NULL, &s_Data->Engine);
         if (result != MA_SUCCESS) {
-            std::cerr << "Failed to initialize audio engine!" << std::endl;
+            SP_CRITICAL("Failed to initialize audio engine!");
             return;
         }
-        std::cout << "Audio Manager Initialized (miniaudio)" << std::endl;
+        SP_INFO("Audio Manager Initialized (miniaudio)");
     }
 
     void AudioManager::Shutdown() {

@@ -48,27 +48,32 @@ std::shared_ptr<Scene> Scene::Copy(std::shared_ptr<Scene> other) {
 
         // Rigidbody2D
         if (srcRegistry.all_of<Rigidbody2DComponent>(entity)) {
-            newEntity.AddComponent<Rigidbody2DComponent>(srcRegistry.get<Rigidbody2DComponent>(entity));
+            auto& rb2d = newEntity.AddComponent<Rigidbody2DComponent>(srcRegistry.get<Rigidbody2DComponent>(entity));
+            rb2d.RuntimeBody = nullptr;
         }
 
         // BoxCollider2D
         if (srcRegistry.all_of<BoxCollider2DComponent>(entity)) {
-            newEntity.AddComponent<BoxCollider2DComponent>(srcRegistry.get<BoxCollider2DComponent>(entity));
+            auto& bc2d = newEntity.AddComponent<BoxCollider2DComponent>(srcRegistry.get<BoxCollider2DComponent>(entity));
+            bc2d.RuntimeFixture = nullptr;
         }
 
         // CircleCollider2D
         if (srcRegistry.all_of<CircleCollider2DComponent>(entity)) {
-            newEntity.AddComponent<CircleCollider2DComponent>(srcRegistry.get<CircleCollider2DComponent>(entity));
+            auto& cc2d = newEntity.AddComponent<CircleCollider2DComponent>(srcRegistry.get<CircleCollider2DComponent>(entity));
+            cc2d.RuntimeFixture = nullptr;
         }
 
         // LuaScript
         if (srcRegistry.all_of<LuaScriptComponent>(entity)) {
-            newEntity.AddComponent<LuaScriptComponent>(srcRegistry.get<LuaScriptComponent>(entity));
+            auto& lua = newEntity.AddComponent<LuaScriptComponent>(srcRegistry.get<LuaScriptComponent>(entity));
+            lua.Initialized = false;
         }
 
         // AudioSource
         if (srcRegistry.all_of<AudioSourceComponent>(entity)) {
-            newEntity.AddComponent<AudioSourceComponent>(srcRegistry.get<AudioSourceComponent>(entity));
+            auto& audio = newEntity.AddComponent<AudioSourceComponent>(srcRegistry.get<AudioSourceComponent>(entity));
+            audio.RuntimeSound = nullptr;
         }
 
         // AudioListener
@@ -89,7 +94,38 @@ Entity Scene::CreateEntityWithUUID(Spark::UUID uuid, const std::string& name) {
     entity.AddComponent<IDComponent>(uuid);
     entity.AddComponent<TagComponent>(name.empty() ? "Entity" : name);
     entity.AddComponent<TransformComponent>();
+    
+    SP_DEBUG_TRACE("Scene: Created Entity '" + name + "' (UUID: " + std::to_string((uint64_t)uuid) + ")");
     return entity;
+}
+
+void Scene::DestroyEntity(Entity entity) {
+    std::string name = "Unknown";
+    if (entity.HasComponent<TagComponent>()) name = entity.GetComponent<TagComponent>().Tag;
+    SP_DEBUG_TRACE("Scene: Destroying Entity '" + name + "'");
+
+    // 1. Physik-Cleanup
+    if (m_PhysicsWorld && entity.HasComponent<Rigidbody2DComponent>()) {
+        auto& rb2d = entity.GetComponent<Rigidbody2DComponent>();
+        if (rb2d.RuntimeBody) {
+            ((b2World*)m_PhysicsWorld)->DestroyBody((b2Body*)rb2d.RuntimeBody);
+            rb2d.RuntimeBody = nullptr;
+        }
+    }
+
+    // 2. Audio-Cleanup
+    if (entity.HasComponent<AudioSourceComponent>()) {
+        auto& audio = entity.GetComponent<AudioSourceComponent>();
+        if (audio.RuntimeSound) {
+            ma_sound* sound = (ma_sound*)audio.RuntimeSound;
+            ma_sound_uninit(sound);
+            delete sound;
+            audio.RuntimeSound = nullptr;
+        }
+    }
+
+    // 3. Registry-Cleanup
+    m_Registry.destroy((entt::entity)entity);
 }
 
 void Scene::Clear() {
@@ -159,6 +195,8 @@ void Scene::OnRuntimeStart() {
             fixtureDef.restitutionThreshold = cc2d.RestitutionThreshold;
             body->CreateFixture(&fixtureDef);
         }
+
+        body->ResetMassData();
     }
 
     // 2. Audio initialisieren
@@ -235,6 +273,18 @@ void Scene::OnRuntimeStop() {
         delete (b2World*)m_PhysicsWorld;
         m_PhysicsWorld = nullptr;
     }
+
+    // Reset runtime pointers
+    m_Registry.view<Rigidbody2DComponent>().each([](auto entity, auto& rb2d) {
+        rb2d.RuntimeBody = nullptr;
+    });
+    m_Registry.view<BoxCollider2DComponent>().each([](auto entity, auto& bc2d) {
+        bc2d.RuntimeFixture = nullptr;
+    });
+    m_Registry.view<CircleCollider2DComponent>().each([](auto entity, auto& cc2d) {
+        cc2d.RuntimeFixture = nullptr;
+    });
+
     m_IsSimulating = false;
     SP_INFO("Scene Runtime Stopped.");
 }
@@ -304,23 +354,26 @@ void Scene::OnUpdate(float dt) {
 
         const int32_t velocityIterations = 6;
         const int32_t positionIterations = 2;
-        if (dt > 0.0f) {
+        if (dt > 0.0f && m_PhysicsWorld) {
             ((b2World*)m_PhysicsWorld)->Step(dt, velocityIterations, positionIterations);
         }
 
-            // Transform-Komponenten synchronisieren
-            auto view = m_Registry.view<Rigidbody2DComponent>();
-            for (auto e : view) {
-                Entity entity = { e, this };
-                if (!entity.HasComponent<TransformComponent>()) continue;
-                
-                auto& transform = entity.GetComponent<TransformComponent>();
-                auto& rb2d = entity.GetComponent<Rigidbody2DComponent>();
-                    b2Body* body = (b2Body*)rb2d.RuntimeBody;
-            const auto& position = body->GetPosition();
-            transform.Translation.x = position.x;
-            transform.Translation.y = position.y;
-            transform.Rotation.z = glm::degrees(body->GetAngle());
+        // Transform-Komponenten synchronisieren
+        auto view = m_Registry.view<Rigidbody2DComponent>();
+        for (auto e : view) {
+            Entity entity = { e, this };
+            if (!entity.HasComponent<TransformComponent>()) continue;
+            
+            auto& transform = entity.GetComponent<TransformComponent>();
+            auto& rb2d = entity.GetComponent<Rigidbody2DComponent>();
+            
+            if (rb2d.RuntimeBody) {
+                b2Body* body = (b2Body*)rb2d.RuntimeBody;
+                const auto& position = body->GetPosition();
+                transform.Translation.x = position.x;
+                transform.Translation.y = position.y;
+                transform.Rotation.z = glm::degrees(body->GetAngle());
+            }
         }
     }
 }
@@ -334,16 +387,16 @@ void Scene::Render(const OrthographicCamera& camera) {
         auto& transform = spriteView.get<TransformComponent>(e);
         auto& sprite = spriteView.get<SpriteRendererComponent>(e);
         
-        bool hasTexture = false;
-        if (sprite.TextureHandle != 0) {
+        if (sprite.SubTexture) {
+            Spark::Renderer2D::DrawQuad(transform.GetTransform(), sprite.SubTexture, sprite.Color);
+        } else if (sprite.TextureHandle != 0) {
             auto texture = Spark::AssetManager::GetAsset<Texture2D>(sprite.TextureHandle);
             if (texture) {
                 Spark::Renderer2D::DrawQuad(transform.GetTransform(), texture, sprite.Color);
-                hasTexture = true;
+            } else {
+                Spark::Renderer2D::DrawQuad(transform.GetTransform(), sprite.Color);
             }
-        }
-        
-        if (!hasTexture) {
+        } else {
             Spark::Renderer2D::DrawQuad(transform.GetTransform(), sprite.Color);
         }
     }

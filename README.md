@@ -49,6 +49,18 @@ Ein integriertes Projektmanagement-Tool direkt in der Engine.
 - **Undo/Redo:** Unterstützung für Rückgängig-Aktionen bei Transformationen.
 - **Play/Stop:** Startet die physikalische Simulation und Skripte in einer Kopie der Szene (Sandbox-Modus).
 
+### `Content Browser & Hub` (Neu!)
+Das Herzstück der Engine für das Asset-Management.
+- **File Management:** Erstellen, Umbenennen, Löschen und Verschieben (Drag & Drop) von Dateien und Ordnern.
+- **Smart Templates:** Neue Lua-Skripte, Szenen und Textdateien werden mit fertigen Boilerplate-Vorlagen erstellt.
+- **Kontextmenü & Shortcuts:** Schneller Zugriff via Rechtsklick oder `F2` (Umbenennen) und `Del` (Löschen).
+
+### `Integrated IDE & File Viewer` (Neu!)
+Ein leistungsstarker, integrierter Editor für alle Asset-Typen.
+- **Code-Editor:** Unterstützung für `.lua`, `.scene`, `.yaml` und `.spark` mit Zoom-Funktion, Find/Replace und Statusanzeige.
+- **Multimedia Previews:** Direkte Vorschau von Bildern (`.png`, `.jpg`, `.bmp`) und Vorhören von Audio (`.wav`, `.mp3`).
+- **Shortcuts:** Workflow-Optimierung durch `Cmd+S` (Speichern), `Cmd+W` (Schließen), `Cmd+=`/`Cmd+-` (Zoom).
+
 ### Weitere Panels
 - **Scene Hierarchy:** Struktur der aktuellen Welt.
 - **Properties:** Detail-Einstellungen für Komponenten.

@@ -15,15 +15,25 @@ lib/
 
 # Logs and temporary files
 spark.log
+startup_output.txt
 imgui.ini
 .DS_Store
 crashes/
 .vscode/
 
+# Local Editor Settings (should not be in repo)
+editor_settings.yaml
+debugger_settings.yaml
+
 # Project-specific backups and copies
 assets_backup/
 assets_backup_MyNewGame/
 *.spark_backup
+*.spark.lock
+spark.lock
 
 # MacOS files
 .DS_Store
+._*
+.Spotlight-V100
+.Trashes

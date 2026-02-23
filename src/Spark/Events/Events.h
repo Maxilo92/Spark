@@ -1,10 +1,12 @@
 #pragma once
+#include <string>
 
 enum class EventType {
     None = 0,
     WindowClose, WindowResize,
     KeyPressed, KeyReleased,
-    MouseButtonPressed, MouseButtonReleased, MouseMoved, MouseScrolled
+    MouseButtonPressed, MouseButtonReleased, MouseMoved, MouseScrolled,
+    ProjectLoaded, ProjectSaved
 };
 
 class Event {
@@ -12,6 +14,20 @@ public:
     virtual ~Event() = default;
     virtual EventType GetType() const = 0;
     bool Handled = false;
+};
+
+class ProjectLoadedEvent : public Event {
+public:
+    ProjectLoadedEvent(const std::string& path) : Path(path) {}
+    EventType GetType() const override { return EventType::ProjectLoaded; }
+    std::string Path;
+};
+
+class ProjectSavedEvent : public Event {
+public:
+    ProjectSavedEvent(const std::string& path) : Path(path) {}
+    EventType GetType() const override { return EventType::ProjectSaved; }
+    std::string Path;
 };
 
 class WindowCloseEvent : public Event {

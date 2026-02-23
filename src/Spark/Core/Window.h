@@ -15,6 +15,7 @@ public:
     void OnUpdate();
     bool ShouldClose() const;
     void Clear();
+    void SetTitle(const std::string& title);
 
     void SetEventCallback(const EventCallbackFn& callback) { m_Data.EventCallback = callback; }
 

@@ -21,6 +21,12 @@ public:
     void OnAttach() override;
     void OnUpdate(float dt) override;
     void OnImGuiRender() override;
+    void OnEvent(Event& event) override;
+    void OnDetach() override;
+
+private:
+    void SaveEditorSettings();
+    void LoadEditorSettings();
 
 private:
     std::shared_ptr<Shader> m_Shader;

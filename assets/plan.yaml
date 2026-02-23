@@ -2,5 +2,8 @@ Plan:
   - Title: Initialize Project
     Description: Start building MyNewGame!
     Category: General
-    Priority: 1
+    Priority: 2
     Completed: false
+    Notes: |
+      if (blabla):
+        print("Hallo Welt")

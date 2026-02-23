@@ -7,6 +7,8 @@
 
 namespace Spark {
 
+    class SubTexture2D;
+
     struct QuadVertex {
         glm::vec3 Position;
         glm::vec4 Color;
@@ -66,6 +68,7 @@ namespace Spark {
         static void DrawQuad(const glm::mat4& transform, const glm::vec4& color);
         
         static void DrawQuad(const glm::mat4& transform, const std::shared_ptr<Texture2D>& texture, const glm::vec4& tintColor = glm::vec4(1.0f));
+        static void DrawQuad(const glm::mat4& transform, const std::shared_ptr<SubTexture2D>& subTexture, const glm::vec4& tintColor = glm::vec4(1.0f));
 
         static void DrawCircle(const glm::mat4& transform, const glm::vec4& color, float thickness = 1.0f, float fade = 0.005f);
 

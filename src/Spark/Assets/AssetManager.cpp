@@ -97,6 +97,7 @@ namespace Spark {
                 metadata.Type = (AssetType)asset["Type"].as<int>();
                 s_AssetRegistry[metadata.Handle] = metadata;
             }
+            SP_DEBUG_TRACE("AssetManager: Loaded registry with " + std::to_string(s_AssetRegistry.size()) + " entries.");
         }
     }
 

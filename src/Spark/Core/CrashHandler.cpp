@@ -1,10 +1,12 @@
 #include "CrashHandler.h"
+#include "Log.h"
 #include <iostream>
 #include <signal.h>
 #include <chrono>
 #include <fstream>
 #include <ctime>
 #include <iomanip>
+#include <unistd.h>
 
 namespace Spark {
 
@@ -41,18 +43,28 @@ namespace Spark {
             std::string crashDir = "crashes/crash_" + ss.str();
             std::filesystem::create_directories(crashDir);
 
-            // 1. Crash Info Datei schreiben
+            // 1. Crash Info Datei schreiben (Haupt-Report)
             std::ofstream info(crashDir + "/report.txt");
-            info << "Spark Engine Crash Report" << std::endl;
-            info << "=========================" << std::endl;
-            info << "Signal: " << signal << " (" << GetSignalName(signal) << ")" << std::endl;
-            info << "Time: " << ss.str() << std::endl;
+            info << "Spark Engine Crash Report\n";
+            info << "=========================\n";
+            info << "Time:   " << ss.str() << "\n";
+            info << "Signal: " << signal << " (" << GetSignalName(signal) << ")\n";
+            info << "PID:    " << getpid() << "\n";
+            info << "Build:  " << __DATE__ << " " << __TIME__ << "\n";
+            info << "\n--- Engine State ---\n";
+            info << "Verbose Logging: " << (Log::IsVerbose() ? "ON" : "OFF") << "\n";
+            
             info.close();
 
-            // 2. Wichtige Dateien kopieren
+            // 2. Full In-Memory Log (das Wichtigste!)
+            std::ofstream logFile(crashDir + "/Spark.log");
+            logFile << "--- FULL ENGINE LOG (IN-MEMORY) ---\n";
+            logFile << Log::GetFullLogString();
+            logFile.close();
+
+            // 3. Wichtige Dateien kopieren
             CopyFileSafe("assets/scenes/Example.scene", crashDir + "/Example.scene");
             CopyFileSafe("assets/plan.yaml", crashDir + "/plan.yaml");
-            CopyFileSafe("Spark.log", crashDir + "/Spark.log");
             CopyFileSafe("assets/AssetRegistry.yaml", crashDir + "/AssetRegistry.yaml");
 
             std::cerr << "CRASH REPORT CREATED AT: " << crashDir << std::endl;

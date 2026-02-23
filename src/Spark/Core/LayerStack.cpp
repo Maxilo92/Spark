@@ -1,4 +1,5 @@
 #include "LayerStack.h"
+#include "Log.h"
 #include <algorithm>
 
 LayerStack::~LayerStack() {
@@ -9,14 +10,20 @@ LayerStack::~LayerStack() {
 }
 
 void LayerStack::PushLayer(Layer* layer) {
+    SP_DEBUG_TRACE("LayerStack: Pushing Layer '" + layer->GetName() + "'");
     m_Layers.emplace(m_Layers.begin() + m_LayerInsertIndex, layer);
     m_LayerInsertIndex++;
     layer->OnAttach();
 }
 
 void LayerStack::PushOverlay(Layer* overlay) {
+    SP_DEBUG_TRACE("LayerStack: Pushing Overlay '" + overlay->GetName() + "'");
     m_Layers.emplace_back(overlay);
     overlay->OnAttach();
+}
+
+void LayerStack::PushOverlayManual(Layer* overlay) {
+    m_Layers.emplace_back(overlay);
 }
 
 void LayerStack::PopLayer(Layer* layer) {

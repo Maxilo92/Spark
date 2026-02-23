@@ -38,8 +38,13 @@ namespace Spark {
         static void Error(const std::string& msg);
         static void Critical(const std::string& msg);
 
-        static const std::vector<LogMessage>& GetMessages() { return s_Messages; }
         static void Clear();
+
+        static std::vector<LogMessage> GetMessages();
+        static std::string GetFullLogString();
+        
+        static void SetVerbose(bool enabled) { s_VerboseLogging = enabled; }
+        static bool IsVerbose() { return s_VerboseLogging; }
 
     private:
         static void AddMessage(LogLevel level, const std::string& msg);
@@ -50,6 +55,7 @@ namespace Spark {
         static std::ofstream s_LogFile;
         static std::recursive_mutex s_Mutex;
         static std::map<std::string, CommandCallback> s_Commands;
+        static bool s_VerboseLogging;
     };
 
 }
@@ -60,3 +66,6 @@ namespace Spark {
 #define SP_WARN(...)     ::Spark::Log::Warn(__VA_ARGS__)
 #define SP_ERROR(...)    ::Spark::Log::Error(__VA_ARGS__)
 #define SP_CRITICAL(...) ::Spark::Log::Critical(__VA_ARGS__)
+
+// Verbose logging that can be toggled
+#define SP_DEBUG_TRACE(...) if (::Spark::Log::IsVerbose()) ::Spark::Log::Trace(__VA_ARGS__)

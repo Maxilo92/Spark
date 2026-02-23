@@ -18,7 +18,7 @@ Texture2D::Texture2D(uint32_t width, uint32_t height)
 }
 
 Texture2D::Texture2D(const std::string& path)
-    : m_Path(path) {
+    : m_Path(path), m_RendererID(0), m_Width(0), m_Height(0) {
     int width, height, channels;
     stbi_set_flip_vertically_on_load(1);
     stbi_uc* data = stbi_load(path.c_str(), &width, &height, &channels, 0);

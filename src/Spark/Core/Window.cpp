@@ -113,3 +113,8 @@ void Window::Clear() {
     glClearColor(0.15f, 0.15f, 0.15f, 1.0f);
     glClear(GL_COLOR_BUFFER_BIT);
 }
+
+void Window::SetTitle(const std::string& title) {
+    m_Data.Title = title;
+    glfwSetWindowTitle(m_Window, title.c_str());
+}

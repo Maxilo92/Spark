@@ -69,7 +69,7 @@ namespace Spark {
         fout << out.c_str();
         fout.close();
 
-        std::string cmd = "zip -r \"" + path.string() + "\" assets project_meta.yaml";
+        std::string cmd = "zip -r \"" + path.string() + "\" assets project_meta.yaml editor_settings.yaml debugger_settings.yaml";
         int result = std::system(cmd.c_str());
         std::filesystem::remove("project_meta.yaml");
 

@@ -2,6 +2,7 @@
 #include "imgui.h"
 #include "imgui_impl_glfw.h"
 #include "imgui_impl_opengl3.h"
+#include "Log.h"
 #include <GLFW/glfw3.h>
 
 ImGuiLayer::ImGuiLayer(Window& window) : Layer("ImGuiLayer"), m_Window(window) {}
@@ -18,6 +19,13 @@ void ImGuiLayer::OnAttach() {
     io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
 
     ImGui::StyleColorsDark();
+
+    // Load fonts
+    io.Fonts->AddFontDefault(); // Index 0: Global Default
+    
+    // Index 1: High-Quality Monospace Font for Editor
+    float baseFontSize = 36.0f;
+    io.Fonts->AddFontFromFileTTF("imgui-1.92.6/misc/fonts/Cousine-Regular.ttf", baseFontSize);
 
     ImGui_ImplGlfw_InitForOpenGL(m_Window.GetNativeWindow(), false);
     const char* glsl_version = "#version 150"; 

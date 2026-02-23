@@ -2,6 +2,7 @@
 #include <GLFW/glfw3.h>
 #include <glm/glm.hpp>
 #include <unordered_map>
+#include "imgui.h"
 
 namespace Spark {
 
@@ -17,16 +18,14 @@ namespace Spark {
         static bool IsKeyPressed(int key) {
             if (key < 0 || key > GLFW_KEY_LAST) return false;
             
-            // 1. Check internal state map (Event-based)
-            if (s_KeyStates[key]) return true;
-
-            // 2. Fallback: Poll GLFW directly (Window state)
+            // 1. Direct polling
             if (s_Window) {
                 auto state = glfwGetKey(s_Window, key);
-                return state == GLFW_PRESS || state == GLFW_REPEAT;
+                if (state == GLFW_PRESS || state == GLFW_REPEAT) return true;
             }
 
-            return false;
+            // 2. Event-based state
+            return s_KeyStates[key];
         }
 
         static bool IsMouseButtonPressed(int button) {

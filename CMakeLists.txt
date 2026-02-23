@@ -45,12 +45,13 @@ set(ENGINE_SOURCES
     src/Spark/Renderer/Framebuffer.cpp
     src/Spark/Renderer/Scene.cpp
     src/Spark/Renderer/SceneSerializer.cpp
+    src/Spark/Editor/FileOperationService.cpp
+    src/Spark/Editor/AssetTemplateSystem.cpp
     src/Spark/Editor/FileViewerPanel.cpp
     src/Spark/Editor/ContentBrowserPanel.cpp
     src/Spark/Editor/ConsolePanel.cpp
     src/Spark/Editor/SceneHierarchyPanel.cpp
     src/Spark/Editor/PlanPanel.cpp
-    src/Spark/Editor/InputTestLayer.cpp
     src/Spark/Core/UUID.cpp
     src/Spark/Core/Log.cpp
     src/Spark/Core/FileSystem.cpp

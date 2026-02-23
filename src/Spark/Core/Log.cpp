@@ -1,4 +1,5 @@
 #include "Log.h"
+#include "Application.h"
 #include <iostream>
 #include <iomanip>
 #include <ctime>
@@ -11,6 +12,7 @@ namespace Spark {
     std::ofstream Log::s_LogFile;
     std::recursive_mutex Log::s_Mutex;
     std::map<std::string, Log::CommandCallback> Log::s_Commands;
+    bool Log::s_VerboseLogging = false;
 
     void Log::Init() {
         s_LogFile.open("spark.log", std::ios::out | std::ios::trunc);
@@ -19,11 +21,31 @@ namespace Spark {
         RegisterCommand("clear", [](const std::vector<std::string>& args) {
             Log::Clear();
         });
+
+        RegisterCommand("verbose", [](const std::vector<std::string>& args) {
+            if (args.empty()) {
+                Log::SetVerbose(!Log::IsVerbose());
+            } else {
+                Log::SetVerbose(args[0] == "1" || args[0] == "true" || args[0] == "on");
+            }
+            Application::Get().UpdateWindowTitle();
+            SP_INFO("Verbose Logging: " + std::string(Log::IsVerbose() ? "Enabled" : "Disabled"));
+        });
         
         RegisterCommand("help", [](const std::vector<std::string>& args) {
             SP_INFO("Available commands:");
             for (auto const& [name, cb] : s_Commands)
                 SP_INFO(" - " + name);
+        });
+
+        RegisterCommand("echo", [](const std::vector<std::string>& args) {
+            std::string text;
+            for (const auto& arg : args) text += arg + " ";
+            SP_INFO(text);
+        });
+
+        RegisterCommand("ping", [](const std::vector<std::string>& args) {
+            SP_INFO("Pong!");
         });
 
         SP_INFO("Spark Engine Logger Initialized.");
@@ -93,6 +115,28 @@ namespace Spark {
     void Log::Clear() {
         std::lock_guard<std::recursive_mutex> lock(s_Mutex);
         s_Messages.clear();
+    }
+
+    std::vector<LogMessage> Log::GetMessages() {
+        std::lock_guard<std::recursive_mutex> lock(s_Mutex);
+        return s_Messages;
+    }
+
+    std::string Log::GetFullLogString() {
+        std::lock_guard<std::recursive_mutex> lock(s_Mutex);
+        std::stringstream ss;
+        for (const auto& msg : s_Messages) {
+            const char* levelStr = "INFO";
+            switch (msg.Level) {
+                case LogLevel::Trace:    levelStr = "TRAC"; break;
+                case LogLevel::Warning:  levelStr = "WARN"; break;
+                case LogLevel::Error:    levelStr = " ERR"; break;
+                case LogLevel::Critical: levelStr = "CRIT"; break;
+                default: break;
+            }
+            ss << "[" << msg.Timestamp << "] [" << levelStr << "] " << msg.Message << "\n";
+        }
+        return ss.str();
     }
 
 }

@@ -1,6 +1,7 @@
 #include "SceneHierarchyPanel.h"
 #include "imgui.h"
 #include "Components.h"
+#include "Log.h"
 #include "Command.h"
 #include "TransformCommand.h"
 #include "AssetCommands.h"
@@ -28,6 +29,7 @@ void SceneHierarchyPanel::OnImGuiRender(bool* p_open_hierarchy, bool* p_open_pro
         // Right-click on empty space in Hierarchy
         if (ImGui::BeginPopupContextWindow(0, 1)) {
             if (ImGui::MenuItem("Create Empty Entity")) {
+                SP_DEBUG_TRACE("UI: Hierarchy 'Create Empty Entity' clicked");
                 m_Context->CreateEntity("Empty Entity");
             }
             ImGui::EndPopup();
@@ -67,8 +69,9 @@ void SceneHierarchyPanel::DrawEntityNode(Entity entity) {
     // Context menu for the entity itself
     if (ImGui::BeginPopupContextItem()) {
         if (ImGui::MenuItem("Delete Entity")) {
+            SP_DEBUG_TRACE("UI: Hierarchy 'Delete Entity' clicked for '" + tag + "'");
             if (m_SelectionContext == entity) m_SelectionContext = {};
-            m_Context->m_Registry.destroy(entity);
+            m_Context->DestroyEntity(entity);
         }
         ImGui::EndPopup();
     }
@@ -242,41 +245,50 @@ void SceneHierarchyPanel::DrawComponents(Entity entity) {
         }
     }
 
-    if (ImGui::Button("Add Component"))
+    if (ImGui::Button("Add Component")) {
+        SP_DEBUG_TRACE("UI: Properties 'Add Component' clicked");
         ImGui::OpenPopup("AddComponent");
+    }
 
     if (ImGui::BeginPopup("AddComponent")) {
         if (ImGui::MenuItem("Sprite Renderer")) {
+            SP_DEBUG_TRACE("UI: Menu 'Add Sprite Renderer' clicked");
             if (!m_SelectionContext.HasComponent<SpriteRendererComponent>())
                 m_SelectionContext.AddComponent<SpriteRendererComponent>();
             ImGui::CloseCurrentPopup();
         }
         if (ImGui::MenuItem("Circle Renderer")) {
+            SP_DEBUG_TRACE("UI: Menu 'Add Circle Renderer' clicked");
             if (!m_SelectionContext.HasComponent<CircleRendererComponent>())
                 m_SelectionContext.AddComponent<CircleRendererComponent>();
             ImGui::CloseCurrentPopup();
         }
         if (ImGui::MenuItem("Rigidbody 2D")) {
+            SP_DEBUG_TRACE("UI: Menu 'Add Rigidbody 2D' clicked");
             if (!m_SelectionContext.HasComponent<Rigidbody2DComponent>())
                 m_SelectionContext.AddComponent<Rigidbody2DComponent>();
             ImGui::CloseCurrentPopup();
         }
         if (ImGui::MenuItem("Box Collider 2D")) {
+            SP_DEBUG_TRACE("UI: Menu 'Add Box Collider 2D' clicked");
             if (!m_SelectionContext.HasComponent<BoxCollider2DComponent>())
                 m_SelectionContext.AddComponent<BoxCollider2DComponent>();
             ImGui::CloseCurrentPopup();
         }
         if (ImGui::MenuItem("Circle Collider 2D")) {
+            SP_DEBUG_TRACE("UI: Menu 'Add Circle Collider 2D' clicked");
             if (!m_SelectionContext.HasComponent<CircleCollider2DComponent>())
                 m_SelectionContext.AddComponent<CircleCollider2DComponent>();
             ImGui::CloseCurrentPopup();
         }
         if (ImGui::MenuItem("Audio Source")) {
+            SP_DEBUG_TRACE("UI: Menu 'Add Audio Source' clicked");
             if (!m_SelectionContext.HasComponent<AudioSourceComponent>())
                 m_SelectionContext.AddComponent<AudioSourceComponent>();
             ImGui::CloseCurrentPopup();
         }
         if (ImGui::MenuItem("Audio Listener")) {
+            SP_DEBUG_TRACE("UI: Menu 'Add Audio Listener' clicked");
             if (!m_SelectionContext.HasComponent<AudioListenerComponent>())
                 m_SelectionContext.AddComponent<AudioListenerComponent>();
             ImGui::CloseCurrentPopup();

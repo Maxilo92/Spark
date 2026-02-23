@@ -10,6 +10,10 @@ namespace Spark {
 
     private:
         bool m_AutoScroll = true;
+        bool m_FilterInfo = true;
+        bool m_FilterWarning = true;
+        bool m_FilterError = true;
+        char m_SearchFilter[128] = "";
     };
 
 }

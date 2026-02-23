@@ -1,4 +1,5 @@
 #include "TriangleLayer.h"
+#include "Application.h"
 #include "ProjectManager.h"
 #include "MacOSUtils.h"
 #include "imgui.h"
@@ -17,12 +18,16 @@
 #define GL_SILENCE_DEPRECATION
 #define GLFW_INCLUDE_GLCOREARB
 #include <GLFW/glfw3.h>
+#include <yaml-cpp/yaml.h>
+#include <fstream>
 
 void TriangleLayer::OnAttach() {
     m_EditorScene = std::make_shared<Scene>();
     m_ActiveScene = m_EditorScene;
 
     m_SceneHierarchyPanel.SetContext(m_ActiveScene);
+
+    LoadEditorSettings();
 
     // --- PHYSICS DEMO SETUP ---
     auto ball = m_EditorScene->CreateEntity("Ball");
@@ -114,26 +119,105 @@ void main() {
     fbSpec.Width = 1280;
     fbSpec.Height = 720;
     m_Framebuffer = std::make_shared<Framebuffer>(fbSpec);
+
+    // Register Console Commands
+    Spark::Log::RegisterCommand("list", [this](const std::vector<std::string>& args) {
+        if (!m_ActiveScene) return;
+        SP_INFO("Entities in current scene:");
+        m_ActiveScene->m_Registry.view<TagComponent>().each([&](auto entity, auto& tag) {
+            SP_INFO(" - " + tag.Tag + " (ID: " + std::to_string((uint32_t)entity) + ")");
+        });
+    });
+
+    Spark::Log::RegisterCommand("select", [this](const std::vector<std::string>& args) {
+        if (!m_ActiveScene) return;
+        if (args.empty()) { SP_WARN("Usage: select <name>"); return; }
+        
+        std::string name = args[0];
+        auto view = m_ActiveScene->m_Registry.view<TagComponent>();
+        for (auto e : view) {
+            if (view.get<TagComponent>(e).Tag == name) {
+                m_SceneHierarchyPanel.SetSelectedEntity({e, m_ActiveScene.get()});
+                SP_INFO("Selected entity: " + name);
+                return;
+            }
+        }
+        SP_ERROR("Entity not found: " + name);
+    });
+
+    Spark::Log::RegisterCommand("play", [this](const std::vector<std::string>& args) {
+        if (!m_ActiveScene) return;
+        if (!m_ActiveScene->IsSimulating()) {
+            m_ActiveScene = Scene::Copy(m_EditorScene);
+            m_SceneHierarchyPanel.SetContext(m_ActiveScene);
+            m_ActiveScene->OnRuntimeStart();
+            SP_INFO("Simulation started via console.");
+        }
+    });
+
+    Spark::Log::RegisterCommand("stop", [this](const std::vector<std::string>& args) {
+        if (!m_ActiveScene) return;
+        if (m_ActiveScene->IsSimulating()) {
+            m_ActiveScene->OnRuntimeStop();
+            m_ActiveScene = m_EditorScene;
+            m_SceneHierarchyPanel.SetContext(m_ActiveScene);
+            SP_INFO("Simulation stopped via console.");
+        }
+    });
 }
 
 void TriangleLayer::OnUpdate(float dt) {
-    if (m_ViewportSize.x > 0.0f && m_ViewportSize.y > 0.0f &&
+    if (m_Framebuffer && m_ViewportSize.x > 0.0f && m_ViewportSize.y > 0.0f &&
        (m_Framebuffer->GetSpecification().Width != m_ViewportSize.x || m_Framebuffer->GetSpecification().Height != m_ViewportSize.y)) {
         m_Framebuffer->Resize((uint32_t)m_ViewportSize.x, (uint32_t)m_ViewportSize.y);
     }
 
-    m_ActiveScene->OnUpdate(dt);
+    if (m_ActiveScene)
+        m_ActiveScene->OnUpdate(dt);
 
-    m_Framebuffer->Bind();
-    glClearColor(0.1f, 0.1f, 0.1f, 1.0f);
-    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+    if (m_Framebuffer) {
+        m_Framebuffer->Bind();
+        glClearColor(0.1f, 0.1f, 0.1f, 1.0f);
+        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-    m_ActiveScene->Render(m_Camera);
+        if (m_ActiveScene)
+            m_ActiveScene->Render(m_Camera);
 
-    m_Framebuffer->Unbind();
+        m_Framebuffer->Unbind();
+    }
 }
 
 void TriangleLayer::OnImGuiRender() {
+    // Track window visibility changes for verbose logging
+    static struct {
+        bool Viewport, Hierarchy, Properties, ContentBrowser, FileViewer, Console, Plan, Settings;
+    } lastVisible = { m_ShowViewport, m_ShowSceneHierarchy, m_ShowProperties, m_ShowContentBrowser, m_ShowFileViewer, m_ShowConsole, m_ShowPlanPanel, m_ShowSettings };
+
+    auto LogVisibility = [](const std::string& name, bool current, bool& last) {
+        if (current != last) {
+            SP_DEBUG_TRACE("UI: Window '" + name + "' " + std::string(current ? "opened" : "closed"));
+            last = current;
+        }
+    };
+
+    LogVisibility("Viewport", m_ShowViewport, lastVisible.Viewport);
+    LogVisibility("Scene Hierarchy", m_ShowSceneHierarchy, lastVisible.Hierarchy);
+    LogVisibility("Properties", m_ShowProperties, lastVisible.Properties);
+    LogVisibility("Content Browser", m_ShowContentBrowser, lastVisible.ContentBrowser);
+    LogVisibility("File Viewer", m_ShowFileViewer, lastVisible.FileViewer);
+    LogVisibility("Console", m_ShowConsole, lastVisible.Console);
+    LogVisibility("Plan & Roadmap", m_ShowPlanPanel, lastVisible.Plan);
+    LogVisibility("Settings", m_ShowSettings, lastVisible.Settings);
+
+    // Shortcuts
+    ImGuiIO& io = ImGui::GetIO();
+    bool cmdDown = (io.KeyMods & ImGuiMod_Super) || (io.KeyMods & ImGuiMod_Ctrl);
+    
+    if (cmdDown && ImGui::IsKeyPressed(ImGuiKey_Z)) {
+        if (io.KeyMods & ImGuiMod_Shift) Spark::CommandHistory::Redo();
+        else Spark::CommandHistory::Undo();
+    }
+    
     // Check for native macOS About request
     if (Spark::MacOSUtils::ShouldShowAbout()) {
         m_ShowAboutPopup = true;
@@ -153,6 +237,12 @@ void TriangleLayer::OnImGuiRender() {
                 }
             }
             if (ImGui::MenuItem("Save Project As...")) m_ShowSaveProjectPopup = true;
+            ImGui::EndMenu();
+        }
+
+        if (ImGui::BeginMenu("Edit")) {
+            if (ImGui::MenuItem("Undo", "Cmd+Z", false, Spark::CommandHistory::CanUndo())) Spark::CommandHistory::Undo();
+            if (ImGui::MenuItem("Redo", "Cmd+Shift+Z", false, Spark::CommandHistory::CanRedo())) Spark::CommandHistory::Redo();
             ImGui::EndMenu();
         }
 
@@ -188,7 +278,7 @@ void TriangleLayer::OnImGuiRender() {
 
     if (m_ShowViewport) {
         ImGuiWindowFlags window_flags = ImGuiWindowFlags_None;
-        if (m_ActiveScene->IsSimulating() && ImGui::IsMouseDown(ImGuiMouseButton_Left))
+        if (m_ActiveScene && m_ActiveScene->IsSimulating() && ImGui::IsMouseDown(ImGuiMouseButton_Left))
             window_flags |= ImGuiWindowFlags_NoMove;
 
         ImGui::Begin("Viewport", &m_ShowViewport, window_flags);
@@ -200,7 +290,7 @@ void TriangleLayer::OnImGuiRender() {
         m_ViewportRectMin = { ImGui::GetItemRectMin().x, ImGui::GetItemRectMin().y };
 
         // --- MOUSE DRAGGING LOGIC ---
-        if (m_ActiveScene->IsSimulating() && ImGui::IsMouseDown(ImGuiMouseButton_Left) && ImGui::IsWindowHovered()) {
+        if (m_ActiveScene && m_ActiveScene->IsSimulating() && ImGui::IsMouseDown(ImGuiMouseButton_Left) && ImGui::IsWindowHovered()) {
             ImVec2 mousePos = ImGui::GetMousePos();
             mousePos.x -= m_ViewportRectMin.x;
             mousePos.y -= m_ViewportRectMin.y;
@@ -221,6 +311,8 @@ void TriangleLayer::OnImGuiRender() {
                             b2Body* body = (b2Body*)rb2d.RuntimeBody;
                             body->SetTransform({ mouseWorld.x, mouseWorld.y }, body->GetAngle());
                             body->SetLinearVelocity({ 0, 0 });
+                            body->SetAngularVelocity(0);
+                            body->SetAwake(true); // Keep body awake for interaction
                         }
                         break;
                     }
@@ -230,7 +322,7 @@ void TriangleLayer::OnImGuiRender() {
         // --- END MOUSE DRAGGING ---
 
         Entity selectedEntity = m_SceneHierarchyPanel.GetSelectedEntity();
-        if (selectedEntity && !m_ActiveScene->IsSimulating()) {
+        if (selectedEntity && m_ActiveScene && !m_ActiveScene->IsSimulating()) {
             ImGuizmo::SetOrthographic(true);
             ImGuizmo::SetDrawlist();
             
@@ -264,9 +356,10 @@ void TriangleLayer::OnImGuiRender() {
 
     if (m_ShowSettings) {
         ImGui::Begin("Settings", &m_ShowSettings);
+        
         if (ImGui::Button("Reload Plan Data")) m_PlanPanel.Load();
         ImGui::Separator();
-        if (!m_ActiveScene->IsSimulating()) {
+        if (m_ActiveScene && !m_ActiveScene->IsSimulating()) {
             if (ImGui::Button("Play")) {
                 m_ActiveScene = Scene::Copy(m_EditorScene);
                 m_SceneHierarchyPanel.SetContext(m_ActiveScene);
@@ -274,7 +367,7 @@ void TriangleLayer::OnImGuiRender() {
             }
         } else {
             if (ImGui::Button("Stop")) {
-                m_ActiveScene->OnRuntimeStop();
+                if (m_ActiveScene) m_ActiveScene->OnRuntimeStop();
                 m_ActiveScene = m_EditorScene;
                 m_SceneHierarchyPanel.SetContext(m_ActiveScene);
             }
@@ -289,7 +382,7 @@ void TriangleLayer::OnImGuiRender() {
             ImGui::InputText("##projname", m_NewProjectNameBuffer, sizeof(m_NewProjectNameBuffer));
             ImGui::Separator();
             if (ImGui::Button("Create", ImVec2(120, 0))) {
-                if (m_ActiveScene->IsSimulating()) m_ActiveScene->OnRuntimeStop();
+                if (m_ActiveScene && m_ActiveScene->IsSimulating()) m_ActiveScene->OnRuntimeStop();
                 if (Spark::ProjectManager::NewProject(m_NewProjectNameBuffer, ".")) {
                     m_EditorScene->Clear();
                     m_EditorScene->CreateEntity("New Entity");
@@ -382,5 +475,54 @@ void TriangleLayer::OnImGuiRender() {
             }
             ImGui::EndPopup();
         }
+    }
+}
+
+void TriangleLayer::OnEvent(Event& event) {
+    // Basic event handling if needed
+}
+
+void TriangleLayer::OnDetach() {
+    SaveEditorSettings();
+}
+
+void TriangleLayer::SaveEditorSettings() {
+    YAML::Emitter out;
+    out << YAML::BeginMap;
+    out << YAML::Key << "WindowVisibility" << YAML::Value << YAML::BeginMap;
+    out << YAML::Key << "Viewport" << YAML::Value << m_ShowViewport;
+    out << YAML::Key << "SceneHierarchy" << YAML::Value << m_ShowSceneHierarchy;
+    out << YAML::Key << "Properties" << YAML::Value << m_ShowProperties;
+    out << YAML::Key << "ContentBrowser" << YAML::Value << m_ShowContentBrowser;
+    out << YAML::Key << "FileViewer" << YAML::Value << m_ShowFileViewer;
+    out << YAML::Key << "Console" << YAML::Value << m_ShowConsole;
+    out << YAML::Key << "PlanPanel" << YAML::Value << m_ShowPlanPanel;
+    out << YAML::Key << "Settings" << YAML::Value << m_ShowSettings;
+    out << YAML::EndMap;
+    out << YAML::EndMap;
+
+    std::ofstream fout("editor_settings.yaml");
+    fout << out.c_str();
+}
+
+void TriangleLayer::LoadEditorSettings() {
+    std::ifstream stream("editor_settings.yaml");
+    if (!stream.is_open()) return;
+
+    try {
+        YAML::Node data = YAML::Load(stream);
+        auto visibility = data["WindowVisibility"];
+        if (visibility) {
+            if (visibility["Viewport"]) m_ShowViewport = visibility["Viewport"].as<bool>();
+            if (visibility["SceneHierarchy"]) m_ShowSceneHierarchy = visibility["SceneHierarchy"].as<bool>();
+            if (visibility["Properties"]) m_ShowProperties = visibility["Properties"].as<bool>();
+            if (visibility["ContentBrowser"]) m_ShowContentBrowser = visibility["ContentBrowser"].as<bool>();
+            if (visibility["FileViewer"]) m_ShowFileViewer = visibility["FileViewer"].as<bool>();
+            if (visibility["Console"]) m_ShowConsole = visibility["Console"].as<bool>();
+            if (visibility["PlanPanel"]) m_ShowPlanPanel = visibility["PlanPanel"].as<bool>();
+            if (visibility["Settings"]) m_ShowSettings = visibility["Settings"].as<bool>();
+        }
+    } catch (const std::exception& e) {
+        SP_ERROR("Failed to load editor settings: " + std::string(e.what()));
     }
 }

@@ -106,3 +106,35 @@ Beispiel: Du möchtest ein "Health-System" einbauen.
 3. **Menü:** Füge "Health" zum "Add Component" Popup in `SceneHierarchyPanel.cpp` hinzu.
 4. **Logik:** Erstelle einen neuen Layer oder bearbeite `Scene::OnUpdate`, um die Health-Werte zu verarbeiten.
 5. **Serialisierung:** Füge die Komponente in `SceneSerializer.cpp` zu `SerializeEntity` und `Deserialize` hinzu, damit sie gespeichert wird.
+
+---
+
+## 8. File Management & Editor
+
+Spark nutzt ein integriertes Hub-System für das Asset-Management und die Code-Bearbeitung.
+
+### Der Content Browser (Hub)
+Der Content Browser fungiert als zentrale Anlaufstelle für alle Dateioperationen.
+- **Navigation:** Nutze den "Back"-Button oder die Breadcrumb-Leiste oben, um durch den `assets/`-Ordner zu navigieren.
+- **Öffnen:** Ein Doppelklick auf einen Ordner öffnet diesen. Ein Doppelklick auf eine Datei öffnet den integrierten File Viewer/Editor.
+- **Kontextmenü:** Ein Rechtsklick auf eine Datei oder in den leeren Bereich öffnet ein Menü für:
+    - **New Asset...**: Erstellt neue Lua-Skripte, Szenen oder Textdateien mit vordefinierten Vorlagen.
+    - **Rename (F2)**: Benennt die Datei oder den Ordner um.
+    - **Delete (Del)**: Löscht das Element (mit Sicherheitsabfrage).
+- **Drag & Drop:** Dateien können einfach per Maus in Ordner verschoben werden, um die Projektstruktur zu organisieren.
+
+### Integrierter Editor (IDE Features)
+Dateien wie `.lua`, `.scene`, `.yaml`, `.txt` und `.spark` können direkt in Spark bearbeitet werden.
+- **Shortcuts:**
+    - `Cmd+S`: Datei speichern.
+    - `Cmd+W`: Editor-Tab schließen.
+    - `Cmd+=` / `Cmd+-`: Zoom In / Zoom Out.
+    - `Cmd+0`: Zoom zurücksetzen.
+- **Features:**
+    - **Find & Replace:** Suche nach Begriffen und ersetze sie global in der Datei.
+    - **Live-Status:** Die Statusleiste zeigt Pfad, Zeilenanzahl, Dateigröße und den Speicherstatus ("Unsaved Changes") an.
+    - **Previews:** Bilder (`.png`, `.jpg`) werden direkt angezeigt. Audio-Dateien (`.wav`, `.mp3`) können über einen "Play"-Button vorgehört werden.
+
+### Technische Services
+- **`FileOperationService`**: Bietet statische Methoden für sichere Dateioperationen (Rename, Delete, Move, CreateDirectory) inklusive Error-Logging.
+- **`AssetTemplateSystem`**: Verwaltet die "Smart Templates". Es generiert Boilerplate-Code für neue Assets und stellt sicher, dass Dateinamen im Verzeichnis eindeutig sind (`GetUniqueName`).

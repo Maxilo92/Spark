@@ -13,6 +13,7 @@ public:
 
     Entity CreateEntity(const std::string& name = "Empty Entity");
     Entity CreateEntityWithUUID(Spark::UUID uuid, const std::string& name = "Empty Entity");
+    void DestroyEntity(Entity entity);
     void Clear();
     
     // Physik Simulation starten/stoppen
