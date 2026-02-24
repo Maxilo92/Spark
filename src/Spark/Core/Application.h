@@ -16,6 +16,7 @@ public:
     void OnEvent(Event& e);
 
     void Restart(bool verbose = false);
+    void RebuildAndRestart();
     void UpdateWindowTitle();
 
     void PushLayer(Layer* layer);

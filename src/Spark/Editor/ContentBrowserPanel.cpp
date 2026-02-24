@@ -148,14 +148,52 @@ namespace Spark {
         ImGui::Text("%s", pathLabel.c_str());
         ImGui::Separator();
 
-        // Listenansicht mit Tabellen
-        if (ImGui::BeginTable("ContentTable", 2, ImGuiTableFlags_Resizable | ImGuiTableFlags_RowBg)) {
-            ImGui::TableSetupColumn("Name", ImGuiTableColumnFlags_WidthStretch);
-            ImGui::TableSetupColumn("Type", ImGuiTableColumnFlags_WidthFixed, 100.0f);
+        // Listenansicht mit Tabellen (Sortierbar)
+        ImGuiTableFlags tableFlags = ImGuiTableFlags_Resizable | ImGuiTableFlags_RowBg | ImGuiTableFlags_Sortable;
+        if (ImGui::BeginTable("ContentTable", 2, tableFlags)) {
+            ImGui::TableSetupColumn("Name", ImGuiTableColumnFlags_WidthStretch | ImGuiTableColumnFlags_DefaultSort, 0, 0);
+            ImGui::TableSetupColumn("Type", ImGuiTableColumnFlags_WidthFixed, 100.0f, 1);
             ImGui::TableHeadersRow();
 
             if (std::filesystem::exists(m_CurrentDirectory)) {
-                for (auto& directoryEntry : std::filesystem::directory_iterator(m_CurrentDirectory)) {
+                // Collect entries for sorting
+                std::vector<std::filesystem::directory_entry> entries;
+                for (const auto& entry : std::filesystem::directory_iterator(m_CurrentDirectory)) {
+                    entries.push_back(entry);
+                }
+
+                // Handle Sorting
+                if (ImGuiTableSortSpecs* sortSpecs = ImGui::TableGetSortSpecs()) {
+                    if (sortSpecs->SpecsDirty) {
+                        sortSpecs->SpecsDirty = false;
+                    }
+
+                    std::sort(entries.begin(), entries.end(), [&](const auto& a, const auto& b) {
+                        for (int i = 0; i < sortSpecs->SpecsCount; i++) {
+                            const ImGuiTableColumnSortSpecs* spec = &sortSpecs->Specs[i];
+                            int delta = 0;
+
+                            if (spec->ColumnIndex == 0) { // Name
+                                // Ordner immer oben (optional, aber nutzerfreundlich)
+                                if (a.is_directory() != b.is_directory()) {
+                                    delta = a.is_directory() ? -1 : 1;
+                                } else {
+                                    delta = a.path().filename().string().compare(b.path().filename().string());
+                                }
+                            } else if (spec->ColumnIndex == 1) { // Type
+                                std::string typeA = a.is_directory() ? "Folder" : a.path().extension().string();
+                                std::string typeB = b.is_directory() ? "Folder" : b.path().extension().string();
+                                delta = typeA.compare(typeB);
+                            }
+
+                            if (delta > 0) return (spec->SortDirection == ImGuiSortDirection_Ascending) ? false : true;
+                            if (delta < 0) return (spec->SortDirection == ImGuiSortDirection_Ascending) ? true : false;
+                        }
+                        return false;
+                    });
+                }
+
+                for (auto& directoryEntry : entries) {
                     const auto& path = directoryEntry.path();
                     std::string filenameString = path.filename().string();
                     std::string typeString = directoryEntry.is_directory() ? "Folder" : path.extension().string();
@@ -260,11 +298,6 @@ namespace Spark {
                         }
                         
                         if (!directoryEntry.is_directory()) {
-                            ImGui::Separator();
-                            if (ImGui::MenuItem("Open in Viewer")) {
-                                viewer.OpenFile(path);
-                            }
-
                             // Small Thumbnail Preview in Context Menu for Images
                             if (path.extension() == ".png" || path.extension() == ".jpg" || path.extension() == ".jpeg") {
                                 ImGui::Separator();

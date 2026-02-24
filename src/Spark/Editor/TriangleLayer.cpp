@@ -217,6 +217,21 @@ void TriangleLayer::OnImGuiRender() {
         if (io.KeyMods & ImGuiMod_Shift) Spark::CommandHistory::Redo();
         else Spark::CommandHistory::Undo();
     }
+
+    if (cmdDown && ImGui::IsKeyPressed(ImGuiKey_B)) {
+        SP_DEBUG_TRACE("UI: Shortcut Cmd+B pressed - Triggering Rebuild");
+        Application::Get().RebuildAndRestart();
+    }
+
+    if (cmdDown && ImGui::IsKeyPressed(ImGuiKey_R)) {
+        SP_DEBUG_TRACE("UI: Shortcut Cmd+R pressed - Triggering Quick Restart");
+        Application::Get().Restart(Spark::Log::IsVerbose());
+    }
+
+    if (cmdDown && ImGui::IsKeyPressed(ImGuiKey_Q)) {
+        SP_DEBUG_TRACE("UI: Shortcut Cmd+Q pressed - Exiting Engine");
+        glfwSetWindowShouldClose(glfwGetCurrentContext(), true);
+    }
     
     // Check for native macOS About request
     if (Spark::MacOSUtils::ShouldShowAbout()) {
@@ -241,8 +256,26 @@ void TriangleLayer::OnImGuiRender() {
         }
 
         if (ImGui::BeginMenu("Edit")) {
-            if (ImGui::MenuItem("Undo", "Cmd+Z", false, Spark::CommandHistory::CanUndo())) Spark::CommandHistory::Undo();
-            if (ImGui::MenuItem("Redo", "Cmd+Shift+Z", false, Spark::CommandHistory::CanRedo())) Spark::CommandHistory::Redo();
+            if (ImGui::MenuItem("Undo", "Cmd+Z", false, Spark::CommandHistory::CanUndo())) { SP_DEBUG_TRACE("UI: Menu 'Undo' clicked"); Spark::CommandHistory::Undo(); }
+            if (ImGui::MenuItem("Redo", "Cmd+Shift+Z", false, Spark::CommandHistory::CanRedo())) { SP_DEBUG_TRACE("UI: Menu 'Redo' clicked"); Spark::CommandHistory::Redo(); }
+            ImGui::EndMenu();
+        }
+
+        if (ImGui::BeginMenu("Build")) {
+            if (ImGui::MenuItem("Rebuild & Restart", "Cmd+B")) {
+                SP_DEBUG_TRACE("UI: Menu 'Rebuild & Restart' clicked");
+                Application::Get().RebuildAndRestart();
+            }
+            if (ImGui::MenuItem("Quick Restart", "Cmd+R")) {
+                SP_DEBUG_TRACE("UI: Menu 'Quick Restart' clicked");
+                Application::Get().Restart(Spark::Log::IsVerbose());
+            }
+            ImGui::Separator();
+            if (ImGui::MenuItem("Exit Engine", "Cmd+Q")) {
+                SP_DEBUG_TRACE("UI: Menu 'Exit Engine' clicked");
+                // Trigger window close event or just call exit
+                glfwSetWindowShouldClose(glfwGetCurrentContext(), true);
+            }
             ImGui::EndMenu();
         }
 
@@ -281,11 +314,31 @@ void TriangleLayer::OnImGuiRender() {
         if (m_ActiveScene && m_ActiveScene->IsSimulating() && ImGui::IsMouseDown(ImGuiMouseButton_Left))
             window_flags |= ImGuiWindowFlags_NoMove;
 
+        ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2{ 0, 0 });
         ImGui::Begin("Viewport", &m_ShowViewport, window_flags);
+        
         ImVec2 viewportPanelSize = ImGui::GetContentRegionAvail();
-        m_ViewportSize = { viewportPanelSize.x, viewportPanelSize.y };
+        
+        // --- ASPECT RATIO CALCULATION (16:9) ---
+        float targetAspect = 16.0f / 9.0f;
+        float actualAspect = viewportPanelSize.x / viewportPanelSize.y;
+        
+        ImVec2 displaySize = viewportPanelSize;
+        if (actualAspect > targetAspect) {
+            // Window is wider than target
+            displaySize.x = viewportPanelSize.y * targetAspect;
+        } else {
+            // Window is taller than target
+            displaySize.y = viewportPanelSize.x / targetAspect;
+        }
+        
+        // Center the display
+        ImVec2 offset = { (viewportPanelSize.x - displaySize.x) * 0.5f, (viewportPanelSize.y - displaySize.y) * 0.5f };
+        ImGui::SetCursorPos(offset);
+        
+        m_ViewportSize = { displaySize.x, displaySize.y };
         uint32_t textureID = m_Framebuffer->GetColorAttachmentRendererID();
-        ImGui::Image((void*)(intptr_t)textureID, ImVec2{ m_ViewportSize.x, m_ViewportSize.y }, ImVec2{ 0, 1 }, ImVec2{ 1, 0 });
+        ImGui::Image((void*)(intptr_t)textureID, displaySize, ImVec2{ 0, 1 }, ImVec2{ 1, 0 });
         
         m_ViewportRectMin = { ImGui::GetItemRectMin().x, ImGui::GetItemRectMin().y };
 
@@ -295,6 +348,7 @@ void TriangleLayer::OnImGuiRender() {
             mousePos.x -= m_ViewportRectMin.x;
             mousePos.y -= m_ViewportRectMin.y;
 
+            // Only interact if mouse is actually within the aspect-corrected rect
             if (mousePos.x >= 0 && mousePos.x <= m_ViewportSize.x && mousePos.y >= 0 && mousePos.y <= m_ViewportSize.y) {
                 float mx = (mousePos.x / m_ViewportSize.x) * 2.0f - 1.0f;
                 float my = ((1.0f - (mousePos.y / m_ViewportSize.y)) * 2.0f) - 1.0f;
@@ -312,7 +366,7 @@ void TriangleLayer::OnImGuiRender() {
                             body->SetTransform({ mouseWorld.x, mouseWorld.y }, body->GetAngle());
                             body->SetLinearVelocity({ 0, 0 });
                             body->SetAngularVelocity(0);
-                            body->SetAwake(true); // Keep body awake for interaction
+                            body->SetAwake(true);
                         }
                         break;
                     }
@@ -326,6 +380,7 @@ void TriangleLayer::OnImGuiRender() {
             ImGuizmo::SetOrthographic(true);
             ImGuizmo::SetDrawlist();
             
+            // Guizmo uses the actual screen position of the centered image
             ImGuizmo::SetRect(m_ViewportRectMin.x, m_ViewportRectMin.y, m_ViewportSize.x, m_ViewportSize.y);
 
             const glm::mat4& cameraProjection = m_Camera.GetProjectionMatrix();
@@ -345,6 +400,7 @@ void TriangleLayer::OnImGuiRender() {
             }
         }
         ImGui::End();
+        ImGui::PopStyleVar();
     }
 
     m_SceneHierarchyPanel.OnImGuiRender(&m_ShowSceneHierarchy, &m_ShowProperties);

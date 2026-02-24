@@ -223,6 +223,21 @@ void Application::Restart(bool verbose) {
     exit(1);
 }
 
+void Application::RebuildAndRestart() {
+    SP_INFO("Starting Rebuild...");
+    
+    // Wir nutzen system(), um auf den Abschluss des Builds zu warten
+    // Auf macOS/Linux ist es sicher, das laufende Executable zu überschreiben
+    int result = std::system("python3 build.py");
+    
+    if (result == 0) {
+        SP_INFO("Build successful! Restarting...");
+        Restart(Spark::Log::IsVerbose());
+    } else {
+        SP_ERROR("Build failed! Check console for errors.");
+    }
+}
+
 void Application::UpdateWindowTitle() {
     if (!m_Window) return;
     

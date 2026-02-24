@@ -2,6 +2,7 @@
 #define GL_SILENCE_DEPRECATION
 #include "imgui.h"
 #include "Application.h"
+#include "Renderer2D.h"
 #include "Input.h"
 #include "Log.h"
 #include <GLFW/glfw3.h>
@@ -86,7 +87,9 @@ void DebuggerLayer::OnImGuiRender() {
         ImGui::Begin("Debugger", &m_ShowDebuggerWindow);
         
         if (ImGui::CollapsingHeader("Statistics", ImGuiTreeNodeFlags_DefaultOpen)) {
-            ImGui::Text("Application average %.3f ms/frame (%.1f FPS)", 1000.0f / ImGui::GetIO().Framerate, ImGui::GetIO().Framerate);
+            ImGui::TextColored({ 0.4f, 1.0f, 0.4f, 1.0f }, "Performance:");
+            ImGui::Text("Frame Time: %.3f ms", 1000.0f / ImGui::GetIO().Framerate);
+            ImGui::Text("FPS: %.1f", ImGui::GetIO().Framerate);
             
             // Ein einfacher Graph für die FPS
             static float values[90] = { 0 };
@@ -97,7 +100,16 @@ void DebuggerLayer::OnImGuiRender() {
                 values_offset = (values_offset + 1) % 90;
                 refresh_time = ImGui::GetTime() + 1.0f / 30.0f;
             }
-            ImGui::PlotLines("FPS", values, IM_ARRAYSIZE(values), values_offset, NULL, 0.0f, 150.0f, ImVec2(0, 80));
+            ImGui::PlotLines("##FPS", values, IM_ARRAYSIZE(values), values_offset, NULL, 0.0f, 150.0f, ImVec2(0, 80));
+
+            ImGui::Separator();
+            ImGui::TextColored({ 0.4f, 0.7f, 1.0f, 1.0f }, "Renderer2D Stats:");
+            auto stats = Spark::Renderer2D::GetStats();
+            ImGui::Text("Draw Calls: %u", stats.DrawCalls);
+            ImGui::Text("Quads:      %u", stats.QuadCount);
+            ImGui::Text("Circles:    %u", stats.CircleCount);
+            ImGui::Text("Vertices:   %u", stats.GetTotalVertexCount());
+            ImGui::Text("Indices:    %u", stats.GetTotalIndexCount());
         }
 
         if (ImGui::CollapsingHeader("Input Diagnostics")) {

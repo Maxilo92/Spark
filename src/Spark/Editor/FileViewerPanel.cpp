@@ -50,6 +50,23 @@ namespace Spark {
         }
     }
 
+    void FileViewerPanel::SaveFileAs(const std::filesystem::path& path) {
+        if (m_EditableBuffer.empty()) return;
+
+        std::ofstream ofs(path, std::ios::out | std::ios::trunc);
+        if (ofs.is_open()) {
+            ofs << m_EditableBuffer.data();
+            ofs.close();
+            m_CurrentFile = path;
+            m_IsDirty = false;
+            m_StatusMessage = "Saved as: " + path.filename().string();
+            SP_INFO("File saved as: " + path.string());
+        } else {
+            m_StatusMessage = "ERROR: Could not save file as!";
+            SP_ERROR("Failed to save file as: " + path.string());
+        }
+    }
+
     void FileViewerPanel::ReloadFile() {
         if (!m_CurrentFile.empty()) {
             OpenFile(m_CurrentFile);
@@ -92,7 +109,8 @@ namespace Spark {
             }
         }
 
-        ImGuiWindowFlags flags = ImGuiWindowFlags_MenuBar;
+        // Main window shouldn't scroll; child areas should handle it
+        ImGuiWindowFlags flags = ImGuiWindowFlags_MenuBar | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse;
         if (m_IsDirty) flags |= ImGuiWindowFlags_UnsavedDocument;
 
         std::string title = "Code Editor: " + m_CurrentFile.filename().string();
@@ -113,8 +131,9 @@ namespace Spark {
             else m_IsOpen = false;
         }
 
-        RenderMenuBar();
+        // Handle shortcuts EARLY
         HandleShortcuts();
+        RenderMenuBar();
 
         if (m_CurrentFile.empty()) {
             ImGui::Text("No file selected.");
@@ -122,8 +141,8 @@ namespace Spark {
             return;
         }
 
-        // Calculate height needed for the status bar
-        float statusBarHeight = ImGui::GetTextLineHeightWithSpacing() + ImGui::GetStyle().ItemSpacing.y;
+        // Calculate footer height
+        float statusBarHeight = ImGui::GetTextLineHeightWithSpacing() + ImGui::GetStyle().ItemSpacing.y * 2.0f;
 
         // Content Area
         if (!m_EditableBuffer.empty()) {
@@ -135,6 +154,7 @@ namespace Spark {
         }
 
         // Status Bar (Always at the bottom)
+        ImGui::SetCursorPosY(ImGui::GetCursorPosY() + ImGui::GetContentRegionAvail().y - statusBarHeight);
         RenderStatusBar();
 
         // Popups
@@ -149,6 +169,24 @@ namespace Spark {
                 }
                 ImGui::SameLine();
                 if (ImGui::Button("Cancel", {120, 0})) m_ShowRenamePopup = false;
+                ImGui::EndPopup();
+            }
+        }
+
+        if (m_ShowSaveAsPopup) {
+            ImGui::OpenPopup("Save As");
+            if (ImGui::BeginPopupModal("Save As", &m_ShowSaveAsPopup, ImGuiWindowFlags_AlwaysAutoResize)) {
+                ImGui::Text("Enter filename:");
+                ImGui::InputText("##saveasname", m_SaveAsBuffer, sizeof(m_SaveAsBuffer));
+                
+                ImGui::Separator();
+                if (ImGui::Button("Save", {120, 0})) {
+                    std::filesystem::path newPath = m_CurrentFile.parent_path() / m_SaveAsBuffer;
+                    SaveFileAs(newPath);
+                    m_ShowSaveAsPopup = false;
+                }
+                ImGui::SameLine();
+                if (ImGui::Button("Cancel", {120, 0})) m_ShowSaveAsPopup = false;
                 ImGui::EndPopup();
             }
         }
@@ -185,6 +223,11 @@ namespace Spark {
         if (ImGui::BeginMenuBar()) {
             if (ImGui::BeginMenu("File")) {
                 if (ImGui::MenuItem("Save", "Cmd+S", false, m_IsDirty)) SaveFile();
+                if (ImGui::MenuItem("Save As...", nullptr, false)) {
+                    strncpy(m_SaveAsBuffer, m_CurrentFile.filename().string().c_str(), sizeof(m_SaveAsBuffer));
+                    m_SaveAsBuffer[sizeof(m_SaveAsBuffer) - 1] = '\0';
+                    m_ShowSaveAsPopup = true;
+                }
                 if (ImGui::MenuItem("Reload", nullptr, false)) ReloadFile();
                 if (ImGui::MenuItem("Rename", nullptr, false)) {
                     strncpy(m_RenameBuffer, m_CurrentFile.filename().string().c_str(), sizeof(m_RenameBuffer));
@@ -201,9 +244,9 @@ namespace Spark {
             }
 
             if (ImGui::BeginMenu("View")) {
-                if (ImGui::MenuItem("Zoom In", "Cmd+=", false, m_FontScale < 3.0f)) m_FontScale += 0.1f;
-                if (ImGui::MenuItem("Zoom Out", "Cmd+-", false, m_FontScale > 0.1f)) m_FontScale -= 0.1f;
-                if (ImGui::MenuItem("Reset Zoom", "Cmd+0", false)) m_FontScale = 1.0f;
+                if (ImGui::MenuItem("Zoom In", "Cmd+=", false, m_FontSize < 72)) m_FontSize++;
+                if (ImGui::MenuItem("Zoom Out", "Cmd+-", false, m_FontSize > 6)) m_FontSize--;
+                if (ImGui::MenuItem("Reset Zoom", "Cmd+0", false)) m_FontSize = 18;
                 ImGui::EndMenu();
             }
             
@@ -237,9 +280,9 @@ namespace Spark {
         }
 
         ImGui::SameLine();
-        ImGui::SetNextItemWidth(100);
-        if (ImGui::SliderFloat("##zoom", &m_FontScale, 0.5f, 3.0f, "Editor Zoom: %.1fx")) {
-            SP_DEBUG_TRACE("UI: FileViewer 'Zoom Slider' adjusted (Scale: " + std::to_string(m_FontScale) + ")");
+        ImGui::SetNextItemWidth(120);
+        if (ImGui::SliderInt("##zoom", &m_FontSize, 6, 72, "Size: %d px")) {
+            SP_INFO("Editor Font Size adjusted to " + std::to_string(m_FontSize) + "px");
         }
         
         if (m_IsDirty) {
@@ -268,16 +311,16 @@ namespace Spark {
             
             // Zoom shortcuts: support Equal (=), Plus (+), and Keypad Add
             if (ImGui::IsKeyPressed(ImGuiKey_Equal) || ImGui::IsKeyPressed(ImGuiKey_KeypadAdd) || ImGui::IsKeyPressed(ImGuiKey_KeypadEqual)) {
-                m_FontScale = std::min(3.0f, m_FontScale + 0.1f);
-                SP_DEBUG_TRACE("Shortcut: Zoom In (New Scale: " + std::to_string(m_FontScale) + ")");
+                if (m_FontSize < 72) m_FontSize++;
+                SP_INFO("Shortcut: Size In (New Size: " + std::to_string(m_FontSize) + ")");
             }
             if (ImGui::IsKeyPressed(ImGuiKey_Minus) || ImGui::IsKeyPressed(ImGuiKey_KeypadSubtract)) {
-                m_FontScale = std::max(0.5f, m_FontScale - 0.1f);
-                SP_DEBUG_TRACE("Shortcut: Zoom Out (New Scale: " + std::to_string(m_FontScale) + ")");
+                if (m_FontSize > 6) m_FontSize--;
+                SP_INFO("Shortcut: Size Out (New Size: " + std::to_string(m_FontSize) + ")");
             }
             if (ImGui::IsKeyPressed(ImGuiKey_0) || ImGui::IsKeyPressed(ImGuiKey_Keypad0)) {
-                m_FontScale = 1.0f;
-                SP_DEBUG_TRACE("Shortcut: Reset Zoom");
+                m_FontSize = 18;
+                SP_INFO("Shortcut: Reset Font Size");
             }
         }
     }
@@ -289,25 +332,24 @@ namespace Spark {
 
         // --- TOOLBAR ---
         ImGui::PushFont(uiFont);
-        if (ImGui::Button("Save")) { SP_DEBUG_TRACE("UI: FileViewer 'Save' clicked"); SaveFile(); }
+        if (ImGui::Button("Save")) { SaveFile(); }
         ImGui::SameLine();
-        if (ImGui::Button("Reload")) { SP_DEBUG_TRACE("UI: FileViewer 'Reload' clicked"); ReloadFile(); }
+        if (ImGui::Button("Reload")) { ReloadFile(); }
         ImGui::SameLine();
         ImGui::Separator();
         ImGui::SameLine();
         
-        if (ImGui::Button("A+")) { m_FontScale = std::min(3.0f, m_FontScale + 0.1f); SP_DEBUG_TRACE("UI: FileViewer 'Zoom In' clicked (Scale: " + std::to_string(m_FontScale) + ")"); }
+        if (ImGui::Button("A+")) { if (m_FontSize < 72) m_FontSize++; SP_INFO("Size In (New Size: " + std::to_string(m_FontSize) + ")"); }
         ImGui::SameLine();
-        if (ImGui::Button("A-")) { m_FontScale = std::max(0.1f, m_FontScale - 0.1f); SP_DEBUG_TRACE("UI: FileViewer 'Zoom Out' clicked (Scale: " + std::to_string(m_FontScale) + ")"); }
+        if (ImGui::Button("A-")) { if (m_FontSize > 6) m_FontSize--; SP_INFO("Size Out (New Size: " + std::to_string(m_FontSize) + ")"); }
         ImGui::SameLine();
-        if (ImGui::Button("Reset Zoom")) { m_FontScale = 1.0f; SP_DEBUG_TRACE("UI: FileViewer 'Reset Zoom' clicked"); }
+        if (ImGui::Button("Reset Zoom")) { m_FontSize = 18; SP_INFO("Reset Font Size"); }
         
         ImGui::SameLine();
         ImGui::Separator();
         ImGui::SameLine();
         if (ImGui::Button(m_ShowSearch ? "Hide Find" : "Find/Replace")) {
             m_ShowSearch = !m_ShowSearch;
-            SP_DEBUG_TRACE("UI: FileViewer 'Find/Replace' toggled (" + std::string(m_ShowSearch ? "ON" : "OFF") + ")");
         }
         ImGui::PopFont();
 
@@ -373,27 +415,28 @@ namespace Spark {
             ImGui::PopFont();
         }
 
-        ImVec2 editorSize = ImGui::GetContentRegionAvail();
-        editorSize.y -= footerHeight; // Reserve space for the footer
-        
-        ImGui::BeginChild("EditorTextArea", editorSize, true, ImGuiWindowFlags_HorizontalScrollbar);
-        
-        // This only scales the editor content inside the child
-        ImGui::SetWindowFontScale(m_FontScale);
-        
-        ImGui::PushFont(monoFont);
-        ImGuiInputTextFlags flags = ImGuiInputTextFlags_AllowTabInput;
-        
-        ImVec2 innerSize = ImGui::GetContentRegionAvail();
-        if (ImGui::InputTextMultiline("##editor", m_EditableBuffer.data(), m_EditableBuffer.size(), innerSize, flags)) {
-            if (!m_IsDirty) {
-                m_IsDirty = true;
-                m_StatusMessage = "Modified";
+        // EDITOR AREA (Scrollable child window)
+        if (ImGui::BeginChild("EditorArea", ImVec2(0, -footerHeight), false)) {
+            ImGui::PushFont(monoFont);
+            
+            // Direct Font Scaling hack for maximum compatibility with InputTextMultiline
+            // Calculate scale multiplier from pixel size (base font was loaded at 36.0f)
+            float oldScale = monoFont->Scale;
+            monoFont->Scale = (float)m_FontSize / 36.0f;
+            
+            ImGuiInputTextFlags flags = ImGuiInputTextFlags_AllowTabInput;
+            
+            // Fill the entire area
+            if (ImGui::InputTextMultiline("##editor", m_EditableBuffer.data(), m_EditableBuffer.size(), ImGui::GetContentRegionAvail(), flags)) {
+                if (!m_IsDirty) {
+                    m_IsDirty = true;
+                    m_StatusMessage = "Modified";
+                }
             }
+            
+            monoFont->Scale = oldScale; // Restore global font scale
+            ImGui::PopFont();
         }
-        
-        ImGui::PopFont();
-        ImGui::SetWindowFontScale(1.0f); // Reset scale
         ImGui::EndChild();
     }
 

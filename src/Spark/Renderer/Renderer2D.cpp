@@ -180,11 +180,20 @@ namespace Spark {
         s_Data.CircleShader->Bind();
         s_Data.CircleShader->UploadUniformMat4("u_ViewProjection", camera.GetViewProjectionMatrix());
 
+        ResetStats();
         StartBatch();
     }
 
     void Renderer2D::EndScene() {
         Flush();
+    }
+
+    void Renderer2D::ResetStats() {
+        memset(&s_Data.Stats, 0, sizeof(Statistics));
+    }
+
+    Statistics Renderer2D::GetStats() {
+        return s_Data.Stats;
     }
 
     void Renderer2D::StartBatch() {
@@ -209,6 +218,7 @@ namespace Spark {
             s_Data.TextureShader->Bind();
             s_Data.QuadVertexArray->Bind();
             glDrawElements(GL_TRIANGLES, s_Data.QuadIndexCount, GL_UNSIGNED_INT, nullptr);
+            s_Data.Stats.DrawCalls++;
         }
 
         if (s_Data.CircleIndexCount > 0) {
@@ -219,6 +229,7 @@ namespace Spark {
             s_Data.CircleShader->Bind();
             s_Data.CircleVertexArray->Bind();
             glDrawElements(GL_TRIANGLES, s_Data.CircleIndexCount, GL_UNSIGNED_INT, nullptr);
+            s_Data.Stats.DrawCalls++;
         }
     }
 
@@ -252,6 +263,7 @@ namespace Spark {
         }
 
         s_Data.QuadIndexCount += 6;
+        s_Data.Stats.QuadCount++;
     }
 
     void Renderer2D::DrawQuad(const glm::mat4& transform, const std::shared_ptr<Texture2D>& texture, const glm::vec4& tintColor) {
@@ -285,6 +297,7 @@ namespace Spark {
         }
 
         s_Data.QuadIndexCount += 6;
+        s_Data.Stats.QuadCount++;
     }
 
     void Renderer2D::DrawQuad(const glm::mat4& transform, const std::shared_ptr<SubTexture2D>& subTexture, const glm::vec4& tintColor) {
@@ -319,6 +332,7 @@ namespace Spark {
         }
 
         s_Data.QuadIndexCount += 6;
+        s_Data.Stats.QuadCount++;
     }
 
     void Renderer2D::DrawCircle(const glm::mat4& transform, const glm::vec4& color, float thickness, float fade) {
@@ -334,6 +348,7 @@ namespace Spark {
         }
 
         s_Data.CircleIndexCount += 6;
+        s_Data.Stats.CircleCount++;
     }
 
 }

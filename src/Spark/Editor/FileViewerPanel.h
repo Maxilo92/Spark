@@ -15,6 +15,7 @@ namespace Spark {
         void OpenFile(const std::filesystem::path& path);
         bool IsOpen() const { return m_IsOpen; }
         void SaveFile();
+        void SaveFileAs(const std::filesystem::path& path);
         void ReloadFile();
         void RenameFile(const std::string& newName);
 
@@ -33,15 +34,17 @@ namespace Spark {
         bool m_IsDirty = false;
         bool m_JustOpened = false;
         bool m_ShowRenamePopup = false;
+        bool m_ShowSaveAsPopup = false;
         bool m_ShowCloseConfirmation = false;
         char m_RenameBuffer[128] = "";
+        char m_SaveAsBuffer[128] = "";
         
         // Editor Buffer
         std::vector<char> m_EditableBuffer;
         std::shared_ptr<Texture2D> m_ImageBuffer;
 
         // Editor Settings & State
-        float m_FontScale = 1.0f;
+        int m_FontSize = 18;
         bool m_ShowSearch = false;
         char m_SearchBuffer[256] = "";
         char m_ReplaceBuffer[256] = "";

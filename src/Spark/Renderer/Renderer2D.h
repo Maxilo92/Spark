@@ -24,6 +24,15 @@ namespace Spark {
         float Fade;
     };
 
+    struct Statistics {
+        uint32_t DrawCalls = 0;
+        uint32_t QuadCount = 0;
+        uint32_t CircleCount = 0;
+
+        uint32_t GetTotalVertexCount() const { return (QuadCount + CircleCount) * 4; }
+        uint32_t GetTotalIndexCount() const { return (QuadCount + CircleCount) * 6; }
+    };
+
     struct Renderer2DData {
         static constexpr uint32_t MaxQuads = 10000;
         static constexpr uint32_t MaxVertices = MaxQuads * 4;
@@ -51,6 +60,8 @@ namespace Spark {
         uint32_t TextureSlotIndex = 1; // 0 = white texture
 
         glm::vec4 QuadVertexPositions[4];
+
+        Statistics Stats;
     };
 
     class Renderer2D {
@@ -61,6 +72,10 @@ namespace Spark {
         static void BeginScene(const OrthographicCamera& camera);
         static void EndScene();
         static void Flush();
+
+        // Statistics
+        static void ResetStats();
+        static Statistics GetStats();
 
         // Primitives
         static void DrawQuad(const glm::vec2& position, const glm::vec2& size, const glm::vec4& color);
