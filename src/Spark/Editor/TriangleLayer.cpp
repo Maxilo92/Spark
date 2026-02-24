@@ -1,4 +1,5 @@
 #include "TriangleLayer.h"
+#include "Version.h"
 #include "Application.h"
 #include "ProjectManager.h"
 #include "MacOSUtils.h"
@@ -511,7 +512,7 @@ void TriangleLayer::OnImGuiRender() {
         ImGui::SetNextWindowPos(center, ImGuiCond_Appearing, ImVec2(0.5f, 0.5f));
         
         if (ImGui::BeginPopupModal("About Spark", &m_ShowAboutPopup, ImGuiWindowFlags_AlwaysAutoResize)) {
-            ImGui::TextDisabled("Spark Engine v1.0.0");
+            ImGui::TextDisabled("Spark Engine v%s", SPARK_VERSION_STR);
             ImGui::Separator();
             
             ImGui::Text("Lead Developer: Maximilian");

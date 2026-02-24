@@ -98,6 +98,14 @@ void Application::RenderSplashScreen() {
     float textWidth = ImGui::CalcTextSize("SPARK ENGINE").x;
     ImGui::SetCursorPosX((windowWidth - textWidth) / 2.0f);
     ImGui::TextColored({ 0.2f, 0.6f, 1.0f, 1.0f }, "SPARK ENGINE");
+
+    // Version under title
+    ImGui::SetWindowFontScale(1.5f);
+    std::string verText = "Version " + std::string(SPARK_VERSION_STR);
+    float verWidth = ImGui::CalcTextSize(verText.c_str()).x;
+    ImGui::SetCursorPosX((windowWidth - verWidth) / 2.0f);
+    ImGui::TextDisabled("%s", verText.c_str());
+    ImGui::SetWindowFontScale(1.0f); // Reset scale
     ImGui::SetWindowFontScale(1.0f);
     ImGui::PopFont();
 
