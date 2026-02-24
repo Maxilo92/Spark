@@ -1,4 +1,5 @@
 #include "Application.h"
+#include "Version.h"
 #include "DebuggerLayer.h"
 #include "TriangleLayer.h"
 #include "ScriptEngine.h"
@@ -64,8 +65,6 @@ Application::Application() {
     PushLayer(new DebuggerLayer());
     PushLayer(new TriangleLayer());
 
-    // Artificial wait for 1 second as requested
-    usleep(1000000); 
     m_IsLoading = false;
 }
 
@@ -241,7 +240,7 @@ void Application::RebuildAndRestart() {
 void Application::UpdateWindowTitle() {
     if (!m_Window) return;
     
-    std::string title = "Spark Engine";
+    std::string title = "Spark Engine v" + std::string(SPARK_VERSION_STR);
     if (Spark::Log::IsVerbose()) {
         title += " - Verbose";
     }
