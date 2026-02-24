@@ -11,7 +11,15 @@ def run_command(command, cwd=None):
         subprocess.check_call(command, cwd=cwd)
         return True
     except subprocess.CalledProcessError as e:
-        print(f"Error: Command failed with exit code {e.returncode}")
+        ret = e.returncode
+        # On Unix, negative return code means killed by signal
+        # Our CrashHandler uses _exit(signal), so positive 11, 6, etc. are also crashes
+        crash_codes = [6, 11, 4, 8, 10] # ABRT, SEGV, ILL, FPE, BUS
+        if ret < 0 or ret in crash_codes:
+            print(f"\n[!] ENGINE CRASH DETECTED (Exit Code: {ret})")
+            print("[!] Please check the 'crashes/' folder for a diagnostic report.")
+        else:
+            print(f"Error: Command failed with exit code {ret}")
         return False
 
 def main():

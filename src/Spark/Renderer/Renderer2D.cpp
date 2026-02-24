@@ -4,6 +4,7 @@
 #define GLFW_INCLUDE_GLCOREARB
 #include <GLFW/glfw3.h>
 #include <glm/gtc/matrix_transform.hpp>
+#include <glm/gtc/matrix_inverse.hpp>
 #include <array>
 
 namespace Spark {
@@ -171,6 +172,19 @@ namespace Spark {
     void Renderer2D::Shutdown() {
         delete[] s_Data.QuadVertexBufferBase;
         delete[] s_Data.CircleVertexBufferBase;
+    }
+
+    void Renderer2D::BeginScene(const glm::mat4& projection, const glm::mat4& transform) {
+        glm::mat4 viewProj = projection * glm::inverse(transform);
+
+        s_Data.TextureShader->Bind();
+        s_Data.TextureShader->UploadUniformMat4("u_ViewProjection", viewProj);
+        
+        s_Data.CircleShader->Bind();
+        s_Data.CircleShader->UploadUniformMat4("u_ViewProjection", viewProj);
+
+        ResetStats();
+        StartBatch();
     }
 
     void Renderer2D::BeginScene(const OrthographicCamera& camera) {

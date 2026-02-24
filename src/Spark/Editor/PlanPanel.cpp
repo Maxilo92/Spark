@@ -50,17 +50,21 @@ void PlanPanel::OnImGuiRender(bool* p_open) {
         ImGui::SetColumnWidth(0, 80);
         
         ImGui::Text("Title"); ImGui::NextColumn();
-        ImGui::InputText("##title", m_NewItemTitle, 128); ImGui::NextColumn();
+        ImGui::PushItemWidth(-1);
+        ImGui::InputText("##title", m_NewItemTitle, 128); ImGui::PopItemWidth(); ImGui::NextColumn();
         
         ImGui::Text("Desc"); ImGui::NextColumn();
-        ImGui::InputText("##desc", m_NewItemDescription, 256); ImGui::NextColumn();
+        ImGui::PushItemWidth(-1);
+        ImGui::InputText("##desc", m_NewItemDescription, 256); ImGui::PopItemWidth(); ImGui::NextColumn();
         
         ImGui::Text("Category"); ImGui::NextColumn();
-        ImGui::InputText("##cat", m_NewItemCategory, 128); ImGui::NextColumn();
+        ImGui::PushItemWidth(-1);
+        ImGui::InputText("##cat", m_NewItemCategory, 128); ImGui::PopItemWidth(); ImGui::NextColumn();
         
         ImGui::Text("Priority"); ImGui::NextColumn();
+        ImGui::PushItemWidth(-1);
         const char* priorities[] = { "Low", "Medium", "High" };
-        ImGui::Combo("##prio", &m_NewItemPriority, priorities, IM_ARRAYSIZE(priorities)); ImGui::NextColumn();
+        ImGui::Combo("##prio", &m_NewItemPriority, priorities, IM_ARRAYSIZE(priorities)); ImGui::PopItemWidth(); ImGui::NextColumn();
         
         ImGui::Columns(1);
         if (ImGui::Button("Add Task", ImVec2(ImGui::GetContentRegionAvail().x, 0))) {

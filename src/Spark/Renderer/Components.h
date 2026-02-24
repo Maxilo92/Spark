@@ -6,6 +6,7 @@
 #include <sol/sol.hpp>
 #include "SubTexture2D.h"
 #include "UUID.h"
+#include "SceneCamera.h"
 #include <vector>
 
 struct IDComponent {
@@ -88,6 +89,17 @@ struct Rigidbody2DComponent {
 
     Rigidbody2DComponent() = default;
     Rigidbody2DComponent(BodyType type) : Type(type) {}
+
+    // Runtime-Methoden
+    void ApplyLinearImpulse(const glm::vec2& impulse, bool wake);
+    void ApplyLinearImpulse(const glm::vec2& impulse, const glm::vec2& point, bool wake);
+    void SetLinearVelocity(const glm::vec2& velocity);
+    glm::vec2 GetLinearVelocity() const;
+
+    void SetTransform(const glm::vec2& position);
+    glm::vec2 GetPosition() const;
+    void SetGravityScale(float scale);
+    float GetGravityScale() const;
 };
 
 struct BoxCollider2DComponent {
@@ -98,6 +110,8 @@ struct BoxCollider2DComponent {
     float Friction = 0.5f;
     float Restitution = 0.0f;
     float RestitutionThreshold = 0.5f;
+
+    bool IsSensor = false;
 
     // Speicher für die Box2D Fixture zur Laufzeit
     void* RuntimeFixture = nullptr;
@@ -115,6 +129,8 @@ struct CircleCollider2DComponent {
     float Friction = 0.5f;
     float Restitution = 0.0f;
     float RestitutionThreshold = 0.5f;
+
+    bool IsSensor = false;
 
     // Speicher für die Box2D Fixture zur Laufzeit
     void* RuntimeFixture = nullptr;
@@ -135,10 +151,25 @@ struct AudioSourceComponent {
 
     AudioSourceComponent() = default;
     AudioSourceComponent(const std::string& path) : Path(path) {}
+
+    // Runtime-Methoden
+    void Play();
+    void Stop();
+    bool IsPlaying() const;
+    void SetVolume(float volume);
+    void SetPitch(float pitch);
 };
 
 struct AudioListenerComponent {
     bool Active = true;
 
     AudioListenerComponent() = default;
+};
+
+struct CameraComponent {
+    Spark::SceneCamera Camera;
+    bool Primary = true;
+    bool FixedAspectRatio = false;
+
+    CameraComponent() = default;
 };

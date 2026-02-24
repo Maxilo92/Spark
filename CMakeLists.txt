@@ -21,6 +21,9 @@ set(IMGUI_SOURCES
 find_package(OpenGL REQUIRED)
 find_library(GLFW_LIB glfw REQUIRED)
 
+# Find GTest
+find_package(GTest REQUIRED)
+
 # Neue Dateipfade
 set(ENGINE_SOURCES
     src/main.cpp
@@ -34,17 +37,21 @@ set(ENGINE_SOURCES
     src/Spark/ImGui/ImGuiLayer.cpp
     src/Spark/Editor/DebuggerLayer.cpp
     src/Spark/Editor/TriangleLayer.cpp
+    src/Spark/Editor/MainMenuLayer.cpp
     src/Spark/Renderer/Buffer.cpp
     src/Spark/Renderer/VertexArray.cpp
     src/Spark/Renderer/Shader.cpp
     src/Spark/Renderer/Renderer.cpp
     src/Spark/Renderer/Renderer2D.cpp
+    src/Spark/Renderer/LoadingScreen.cpp
+    src/Spark/Renderer/SceneCamera.cpp
     src/Spark/Renderer/OrthographicCamera.cpp
     src/Spark/Renderer/SubTexture2D.cpp
     src/Spark/Renderer/Texture.cpp
     src/Spark/Renderer/Framebuffer.cpp
     src/Spark/Renderer/Scene.cpp
     src/Spark/Renderer/SceneSerializer.cpp
+    src/Spark/Renderer/Components.cpp
     src/Spark/Editor/FileOperationService.cpp
     src/Spark/Editor/AssetTemplateSystem.cpp
     src/Spark/Editor/FileViewerPanel.cpp
@@ -52,6 +59,7 @@ set(ENGINE_SOURCES
     src/Spark/Editor/ConsolePanel.cpp
     src/Spark/Editor/SceneHierarchyPanel.cpp
     src/Spark/Editor/PlanPanel.cpp
+    src/Spark/Editor/ChangelogPanel.cpp
     src/Spark/Core/UUID.cpp
     src/Spark/Core/Log.cpp
     src/Spark/Core/FileSystem.cpp
@@ -59,9 +67,11 @@ set(ENGINE_SOURCES
     src/Spark/Assets/AssetManager.cpp
     src/Spark/Core/AudioManager.cpp
     src/Spark/Core/ScriptEngine.cpp
+    src/Spark/Scripting/ScriptGlue.cpp
     libs/stb_image/stb_image.cpp
     libs/miniaudio/miniaudio.cpp
     libs/imguizmo/ImGuizmo.cpp
+    src/Spark/Tests/TestScriptGlue.cpp
 )
 
 # yaml-cpp Sources
@@ -107,12 +117,14 @@ target_include_directories(Spark PRIVATE
     libs/imguizmo
     ${IMGUI_DIR}
     ${IMGUI_DIR}/backends
+    libs/googletest/googletest/include
 )
 
 target_link_libraries(Spark 
     ${GLFW_LIB} 
     ${OPENGL_LIBRARIES} 
     Lua
+    GTest::gtest
     "-framework Cocoa" 
     "-framework IOKit" 
     "-framework CoreVideo"

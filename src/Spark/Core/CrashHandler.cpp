@@ -7,33 +7,49 @@
 #include <ctime>
 #include <iomanip>
 #include <unistd.h>
+#include <sys/stat.h>
+#include <sys/types.h>
 
 namespace Spark {
 
     void CrashHandler::Init() {
-        signal(SIGSEGV, HandleCrash);
-        signal(SIGABRT, HandleCrash);
-        signal(SIGILL,  HandleCrash);
-        signal(SIGFPE,  HandleCrash);
+        struct sigaction action;
+        action.sa_handler = HandleCrash;
+        sigemptyset(&action.sa_mask);
+        action.sa_flags = 0;
+
+        sigaction(SIGSEGV, &action, nullptr);
+        sigaction(SIGABRT, &action, nullptr);
+        sigaction(SIGILL,  &action, nullptr);
+        sigaction(SIGFPE,  &action, nullptr);
+        sigaction(SIGBUS,  &action, nullptr);
     }
 
     void CrashHandler::HandleCrash(int signal) {
-        std::cerr << "CRITICAL ERROR: Spark Engine received signal " << signal << " (" << GetSignalName(signal) << ")" << std::endl;
+        // We are in a very sensitive state here. 
+        // Avoid complex logic if possible, but we need the report.
         
-        // Show native alert on macOS
-        std::string alertCmd = "osascript -e 'display dialog \"Spark Engine has crashed!\\n\\nSignal: " + 
-                               std::to_string(signal) + " (" + GetSignalName(signal) + 
-                               ")\\n\\nA diagnostic crash report has been created in the crashes/ folder.\" " +
-                               "with title \"Engine Crash\" buttons {\"OK\"} default button \"OK\" with icon stop'";
-        std::system(alertCmd.c_str());
+        // Disable further signal handling to avoid recursion
+        struct sigaction action;
+        action.sa_handler = SIG_DFL;
+        sigemptyset(&action.sa_mask);
+        action.sa_flags = 0;
+        sigaction(SIGSEGV, &action, nullptr);
+        sigaction(SIGABRT, &action, nullptr);
+
+        std::cerr << "\n[CRITICAL] Spark Engine Crashed!" << std::endl;
+        std::cerr << "Signal: " << signal << " (" << GetSignalName(signal) << ")" << std::endl;
 
         CreateCrashReport(signal);
         
-        // Programm nach Report beenden
-        exit(signal);
+        std::cerr << "Engine shutting down safely..." << std::endl;
+        
+        // Use _exit to avoid calling atexit handlers which might crash again
+        _exit(signal);
     }
 
     void CrashHandler::CreateCrashReport(int signal) {
+        // Attempt to write a report even though it's technically unsafe
         try {
             auto now = std::chrono::system_clock::now();
             auto in_time_t = std::chrono::system_clock::to_time_t(now);
@@ -41,37 +57,47 @@ namespace Spark {
             ss << std::put_time(std::localtime(&in_time_t), "%Y%m%d_%H%M%S");
             
             std::string crashDir = "crashes/crash_" + ss.str();
-            std::filesystem::create_directories(crashDir);
-
-            // 1. Crash Info Datei schreiben (Haupt-Report)
-            std::ofstream info(crashDir + "/report.txt");
-            info << "Spark Engine Crash Report\n";
-            info << "=========================\n";
-            info << "Time:   " << ss.str() << "\n";
-            info << "Signal: " << signal << " (" << GetSignalName(signal) << ")\n";
-            info << "PID:    " << getpid() << "\n";
-            info << "Build:  " << __DATE__ << " " << __TIME__ << "\n";
-            info << "\n--- Engine State ---\n";
-            info << "Verbose Logging: " << (Log::IsVerbose() ? "ON" : "OFF") << "\n";
             
-            info.close();
+            // Standard C mkdir might be safer than std::filesystem in a crash
+            #ifdef _WIN32
+            _mkdir("crashes");
+            _mkdir(crashDir.c_str());
+            #else
+            mkdir("crashes", 0777);
+            mkdir(crashDir.c_str(), 0777);
+            #endif
 
-            // 2. Full In-Memory Log (das Wichtigste!)
+            // 1. Crash Info
+            std::ofstream info(crashDir + "/report.txt");
+            if (info.is_open()) {
+                info << "Spark Engine Crash Report\n";
+                info << "=========================\n";
+                info << "Time:   " << ss.str() << "\n";
+                info << "Signal: " << signal << " (" << GetSignalName(signal) << ")\n";
+                info << "PID:    " << getpid() << "\n";
+                info << "\n--- Engine State ---\n";
+                info << "Status: CRASHED DURING RUNTIME\n";
+                info.close();
+            }
+
+            // 2. Log
             std::ofstream logFile(crashDir + "/Spark.log");
-            logFile << "--- FULL ENGINE LOG (IN-MEMORY) ---\n";
-            logFile << Log::GetFullLogString();
-            logFile.close();
+            if (logFile.is_open()) {
+                logFile << "--- ENGINE LOG AT TIME OF CRASH ---\n";
+                logFile << Log::GetFullLogString();
+                logFile.close();
+            }
 
-            // 3. Wichtige Dateien kopieren
+            // 3. Important Files
             CopyFileSafe("assets/scenes/Example.scene", crashDir + "/Example.scene");
+            CopyFileSafe("assets/scenes/Adventure.scene", crashDir + "/Adventure.scene");
             CopyFileSafe("assets/plan.yaml", crashDir + "/plan.yaml");
             CopyFileSafe("assets/AssetRegistry.yaml", crashDir + "/AssetRegistry.yaml");
 
-            std::cerr << "CRASH REPORT CREATED AT: " << crashDir << std::endl;
-            std::cerr << "Please provide this folder to the developers for debugging." << std::endl;
+            std::cerr << "Crash report saved to: " << crashDir << std::endl;
 
         } catch (...) {
-            std::cerr << "FAILED TO CREATE CRASH REPORT!" << std::endl;
+            // If we crash here, there's nothing more we can do
         }
     }
 
@@ -83,12 +109,13 @@ namespace Spark {
 
     std::string CrashHandler::GetSignalName(int signal) {
         switch (signal) {
-            case SIGSEGV: return "Segmentation Fault (Memory access error)";
-            case SIGABRT: return "Abort (Assertion failed or internal error)";
-            case SIGILL:  return "Illegal Instruction";
-            case SIGFPE:  return "Floating Point Exception";
+            case SIGSEGV: return "Segmentation Fault (SIGSEGV)";
+            case SIGABRT: return "Abort (SIGABRT)";
+            case SIGILL:  return "Illegal Instruction (SIGILL)";
+            case SIGFPE:  return "Floating Point Exception (SIGFPE)";
+            case SIGBUS:  return "Bus Error (SIGBUS)";
         }
-        return "Unknown Signal";
+        return "Unknown Signal " + std::to_string(signal);
     }
 
 }

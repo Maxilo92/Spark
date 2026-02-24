@@ -5,6 +5,13 @@
 #include "ImGuiLayer.h"
 #include <memory>
 
+enum class ApplicationState {
+    STARTUP,
+    MAIN_MENU,
+    PROJECT_LOADING,
+    EDITOR
+};
+
 class Application {
 public:
     Application();
@@ -22,17 +29,22 @@ public:
     void PushLayer(Layer* layer);
     void PushOverlay(Layer* overlay);
 
+    void SetState(ApplicationState newState);
+    ApplicationState GetState() const { return m_State; }
+
 private:
-    void RenderSplashScreen();
-    void SetLoadingStatus(const std::string& status, float progress);
+    void HandleStateTransitions();
+    void SaveWindowSettings();
+    void LoadWindowSettings();
 
 private:
     static Application* s_Instance;
     std::unique_ptr<Window> m_Window;
     ImGuiLayer* m_ImGuiLayer;
     bool m_Running = true;
-    bool m_IsLoading = true;
-    float m_LoadingProgress = 0.0f;
-    std::string m_LoadingStatus = "Starting...";
+    
+    ApplicationState m_State = ApplicationState::STARTUP;
+    ApplicationState m_NextState = ApplicationState::STARTUP;
+    bool m_StateChanged = false;
     LayerStack m_LayerStack;
 };

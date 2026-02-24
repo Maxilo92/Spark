@@ -1,4 +1,5 @@
 #include "FileSystem.h"
+#include "Log.h"
 #include <fstream>
 #include <iostream>
 
@@ -7,10 +8,17 @@ namespace Spark {
     std::map<std::string, std::filesystem::path> FileSystem::s_MountPoints;
 
     void FileSystem::Init() {
-        // Standard-Mounting
+        // Standard-Mounting (relative to executable)
         Mount("Assets", "assets");
         Mount("Scripts", "assets/scripts");
         Mount("Scenes", "assets/scenes");
+    }
+
+    void FileSystem::SetProjectRoot(const std::filesystem::path& root) {
+        Mount("Assets", root / "assets");
+        Mount("Scripts", root / "assets/scripts");
+        Mount("Scenes", root / "assets/scenes");
+        SP_INFO("FileSystem: Project Root set to " + root.string());
     }
 
     void FileSystem::Mount(const std::string& virtualPath, const std::filesystem::path& physicalPath) {

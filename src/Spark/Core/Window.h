@@ -13,6 +13,8 @@ public:
     ~Window();
 
     void OnUpdate();
+    void PollEvents();
+    void SwapBuffers();
     bool ShouldClose() const;
     void Clear();
     void SetTitle(const std::string& title);

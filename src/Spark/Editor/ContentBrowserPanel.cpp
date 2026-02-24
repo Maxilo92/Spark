@@ -1,4 +1,5 @@
 #include "ContentBrowserPanel.h"
+#include "ProjectManager.h"
 #include "imgui.h"
 #include "Log.h"
 #include "FileOperationService.h"
@@ -9,8 +10,9 @@
 namespace Spark {
 
     static std::filesystem::path GetAssetPath() {
-        if (std::filesystem::exists("assets")) return "assets";
-        if (std::filesystem::exists("../assets")) return "../assets";
+        if (ProjectManager::HasActiveProject()) {
+            return ProjectManager::GetActiveProjectPath().parent_path() / "assets";
+        }
         return "assets";
     }
 
@@ -317,7 +319,7 @@ namespace Spark {
                     if (ImGui::BeginDragDropSource()) {
                         std::string pathStr = path.string();
                         const char* itemPath = pathStr.c_str();
-                        ImGui::SetDragDropPayload("CONTENT_BROWSER_ITEM", itemPath, (strlen(itemPath) + 1) * sizeof(char));
+                        ImGui::SetDragDropPayload("ASSET_BROWSER_ITEM", itemPath, (strlen(itemPath) + 1) * sizeof(char));
                         ImGui::TextUnformatted(filenameString.c_str());
                         ImGui::EndDragDropSource();
                     }

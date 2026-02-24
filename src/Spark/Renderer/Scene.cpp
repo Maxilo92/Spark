@@ -10,6 +10,38 @@
 #include <box2d/box2d.h>
 #include <iostream>
 
+namespace Spark {
+
+    class SparkContactListener : public b2ContactListener {
+    public:
+        SparkContactListener(Scene* scene) : m_Scene(scene) {}
+
+        void BeginContact(b2Contact* contact) override {
+            entt::entity entityA = (entt::entity)contact->GetFixtureA()->GetUserData().pointer;
+            entt::entity entityB = (entt::entity)contact->GetFixtureB()->GetUserData().pointer;
+
+            if (m_Scene->m_Registry.valid(entityA))
+                m_Scene->m_CollisionQueue.push_back({ entityA, entityB, true });
+            if (m_Scene->m_Registry.valid(entityB))
+                m_Scene->m_CollisionQueue.push_back({ entityB, entityA, true });
+        }
+
+        void EndContact(b2Contact* contact) override {
+            entt::entity entityA = (entt::entity)contact->GetFixtureA()->GetUserData().pointer;
+            entt::entity entityB = (entt::entity)contact->GetFixtureB()->GetUserData().pointer;
+
+            if (m_Scene->m_Registry.valid(entityA))
+                m_Scene->m_CollisionQueue.push_back({ entityA, entityB, false });
+            if (m_Scene->m_Registry.valid(entityB))
+                m_Scene->m_CollisionQueue.push_back({ entityB, entityA, false });
+        }
+
+    private:
+        Scene* m_Scene;
+    };
+
+}
+
 Scene::Scene() {
 }
 
@@ -80,6 +112,11 @@ std::shared_ptr<Scene> Scene::Copy(std::shared_ptr<Scene> other) {
         if (srcRegistry.all_of<AudioListenerComponent>(entity)) {
             newEntity.AddComponent<AudioListenerComponent>(srcRegistry.get<AudioListenerComponent>(entity));
         }
+
+        // Camera
+        if (srcRegistry.all_of<CameraComponent>(entity)) {
+            newEntity.AddComponent<CameraComponent>(srcRegistry.get<CameraComponent>(entity));
+        }
     });
 
     return newScene;
@@ -134,7 +171,13 @@ void Scene::Clear() {
 
 void Scene::OnRuntimeStart() {
     SP_INFO("Scene Runtime Starting...");
+    m_EntitiesToDestroy.clear();
+    m_CollisionQueue.clear();
     m_PhysicsWorld = new b2World({ 0.0f, -9.8f });
+    
+    // Contact Listener initialisieren
+    m_ContactListener = new Spark::SparkContactListener(this);
+    ((b2World*)m_PhysicsWorld)->SetContactListener((b2ContactListener*)m_ContactListener);
 
     // Lua Helper für das aktuelle Entity in diesem Scene-Kontext
     auto& m_Lua = ScriptEngine::GetState();
@@ -143,10 +186,37 @@ void Scene::OnRuntimeStart() {
         if (!m_Registry.all_of<Rigidbody2DComponent>((entt::entity)id)) return nullptr;
         return &m_Registry.get<Rigidbody2DComponent>((entt::entity)id);
     };
+    m_Lua["Internal_GetAudio"] = [&](uint32_t id) -> AudioSourceComponent* {
+        if (!m_Registry.valid((entt::entity)id)) return nullptr;
+        if (!m_Registry.all_of<AudioSourceComponent>((entt::entity)id)) return nullptr;
+        return &m_Registry.get<AudioSourceComponent>((entt::entity)id);
+    };
     m_Lua["Internal_GetTransform"] = [&](uint32_t id) -> TransformComponent* {
         if (!m_Registry.valid((entt::entity)id)) return nullptr;
         if (!m_Registry.all_of<TransformComponent>((entt::entity)id)) return nullptr;
         return &m_Registry.get<TransformComponent>((entt::entity)id);
+    };
+    m_Lua["Internal_GetCamera"] = [&](uint32_t id) -> CameraComponent* {
+        if (!m_Registry.valid((entt::entity)id)) return nullptr;
+        if (!m_Registry.all_of<CameraComponent>((entt::entity)id)) return nullptr;
+        return &m_Registry.get<CameraComponent>((entt::entity)id);
+    };
+    m_Lua["Internal_GetTag"] = [&](uint32_t id) -> std::string {
+        if (!m_Registry.valid((entt::entity)id)) return "Unknown";
+        if (!m_Registry.all_of<TagComponent>((entt::entity)id)) return "Entity";
+        return m_Registry.get<TagComponent>((entt::entity)id).Tag;
+    };
+    m_Lua["Internal_FindEntityByName"] = [&](const std::string& name) -> uint32_t {
+        auto view = m_Registry.view<TagComponent>();
+        for (auto entity : view) {
+            if (view.get<TagComponent>(entity).Tag == name)
+                return (uint32_t)entity;
+        }
+        return 0; // Invalid ID
+    };
+    m_Lua["Internal_DestroyEntity"] = [&](uint32_t id) {
+        if (!m_Registry.valid((entt::entity)id)) return;
+        m_EntitiesToDestroy.push_back((entt::entity)id);
     };
 
     // 1. Physik initialisieren
@@ -163,13 +233,14 @@ void Scene::OnRuntimeStart() {
 
         b2Body* body = ((b2World*)m_PhysicsWorld)->CreateBody(&bodyDef);
         body->SetFixedRotation(rb2d.FixedRotation);
+        body->SetSleepingAllowed(false); // Ensure bodies are always responsive
         rb2d.RuntimeBody = body;
 
         if (entity.HasComponent<BoxCollider2DComponent>()) {
             auto& bc2d = entity.GetComponent<BoxCollider2DComponent>();
 
             b2PolygonShape boxShape;
-            boxShape.SetAsBox(bc2d.Size.x * transform.Scale.x, bc2d.Size.y * transform.Scale.y);
+            boxShape.SetAsBox(bc2d.Size.x * transform.Scale.x, bc2d.Size.y * transform.Scale.y, { bc2d.Offset.x, bc2d.Offset.y }, 0.0f);
 
             b2FixtureDef fixtureDef;
             fixtureDef.shape = &boxShape;
@@ -177,6 +248,8 @@ void Scene::OnRuntimeStart() {
             fixtureDef.friction = bc2d.Friction;
             fixtureDef.restitution = bc2d.Restitution;
             fixtureDef.restitutionThreshold = bc2d.RestitutionThreshold;
+            fixtureDef.isSensor = bc2d.IsSensor;
+            fixtureDef.userData.pointer = (uintptr_t)e;
             body->CreateFixture(&fixtureDef);
         }
 
@@ -193,6 +266,8 @@ void Scene::OnRuntimeStart() {
             fixtureDef.friction = cc2d.Friction;
             fixtureDef.restitution = cc2d.Restitution;
             fixtureDef.restitutionThreshold = cc2d.RestitutionThreshold;
+            fixtureDef.isSensor = cc2d.IsSensor;
+            fixtureDef.userData.pointer = (uintptr_t)e;
             body->CreateFixture(&fixtureDef);
         }
 
@@ -274,6 +349,14 @@ void Scene::OnRuntimeStop() {
         m_PhysicsWorld = nullptr;
     }
 
+    if (m_ContactListener) {
+        delete (b2ContactListener*)m_ContactListener;
+        m_ContactListener = nullptr;
+    }
+
+    m_EntitiesToDestroy.clear();
+    m_CollisionQueue.clear();
+
     // Reset runtime pointers
     m_Registry.view<Rigidbody2DComponent>().each([](auto entity, auto& rb2d) {
         rb2d.RuntimeBody = nullptr;
@@ -291,6 +374,7 @@ void Scene::OnRuntimeStop() {
 
 void Scene::OnUpdate(float dt) {
     if (m_IsSimulating) {
+        // SP_INFO("Scene Update: Simulating with " + std::to_string(m_Registry.storage<entt::entity>().size()) + " entities");
         // Sprite Animation Update
         auto animView = m_Registry.view<SpriteRendererComponent, SpriteAnimationComponent>();
         for (auto e : animView) {
@@ -303,7 +387,7 @@ void Scene::OnUpdate(float dt) {
                     anim.Timer = 0.0f;
                     anim.CurrentFrame++;
                     
-                    if (anim.CurrentFrame >= anim.Frames.size()) {
+                    if (anim.CurrentFrame >= (int)anim.Frames.size()) {
                         if (anim.Loop) {
                             anim.CurrentFrame = 0;
                         } else {
@@ -345,10 +429,13 @@ void Scene::OnUpdate(float dt) {
             auto& script = m_Registry.get<LuaScriptComponent>(e);
             if (script.Initialized && script.Environment["OnUpdate"].valid()) {
                 try {
+                    // SP_INFO("Updating script for entity " + std::to_string((uint32_t)e));
                     script.Environment["OnUpdate"](dt);
                 } catch (const sol::error& err) {
                     SP_ERROR("Lua Runtime Error: " + std::string(err.what()));
                 }
+            } else if (!script.Initialized) {
+                // SP_WARN("Script not initialized for entity " + std::to_string((uint32_t)e));
             }
         }
 
@@ -357,6 +444,32 @@ void Scene::OnUpdate(float dt) {
         if (dt > 0.0f && m_PhysicsWorld) {
             ((b2World*)m_PhysicsWorld)->Step(dt, velocityIterations, positionIterations);
         }
+
+        // Process deferred destruction
+        for (auto e : m_EntitiesToDestroy) {
+            if (m_Registry.valid(e)) {
+                DestroyEntity({ e, this });
+            }
+        }
+        m_EntitiesToDestroy.clear();
+
+        // Process deferred collisions
+        for (auto& e : m_CollisionQueue) {
+            if (m_Registry.valid(e.Entity) && m_Registry.all_of<LuaScriptComponent>(e.Entity)) {
+                auto& script = m_Registry.get<LuaScriptComponent>(e.Entity);
+                if (script.Initialized) {
+                    std::string funcName = e.Begin ? "OnCollisionBegin" : "OnCollisionEnd";
+                    if (script.Environment[funcName].valid()) {
+                        try {
+                            script.Environment[funcName]((uint32_t)e.Other);
+                        } catch (const sol::error& err) {
+                            SP_ERROR("Lua Collision Error: " + std::string(err.what()));
+                        }
+                    }
+                }
+            }
+        }
+        m_CollisionQueue.clear();
 
         // Transform-Komponenten synchronisieren
         auto view = m_Registry.view<Rigidbody2DComponent>();
@@ -370,6 +483,9 @@ void Scene::OnUpdate(float dt) {
             if (rb2d.RuntimeBody) {
                 b2Body* body = (b2Body*)rb2d.RuntimeBody;
                 const auto& position = body->GetPosition();
+                
+                // SP_INFO("Syncing entity " + entity.GetComponent<TagComponent>().Tag + " to " + std::to_string(position.x) + ", " + std::to_string(position.y));
+                
                 transform.Translation.x = position.x;
                 transform.Translation.y = position.y;
                 transform.Rotation.z = glm::degrees(body->GetAngle());
@@ -378,37 +494,106 @@ void Scene::OnUpdate(float dt) {
     }
 }
 
-void Scene::Render(const OrthographicCamera& camera) {
-    Spark::Renderer2D::BeginScene(camera);
+void Scene::OnViewportResize(uint32_t width, uint32_t height) {
+    auto view = m_Registry.view<CameraComponent>();
+    for (auto entity : view) {
+        auto& cameraComponent = view.get<CameraComponent>(entity);
+        if (!cameraComponent.FixedAspectRatio) {
+            cameraComponent.Camera.SetViewportSize(width, height);
+        }
+    }
+}
+
+void Scene::Render(const glm::mat4& projection, const glm::mat4& transform) {
+    Spark::Renderer2D::BeginScene(projection, transform);
 
     // Sprites
     auto spriteView = m_Registry.view<TransformComponent, SpriteRendererComponent>();
     for (auto e : spriteView) {
-        auto& transform = spriteView.get<TransformComponent>(e);
+        auto& tc = spriteView.get<TransformComponent>(e);
         auto& sprite = spriteView.get<SpriteRendererComponent>(e);
         
         if (sprite.SubTexture) {
-            Spark::Renderer2D::DrawQuad(transform.GetTransform(), sprite.SubTexture, sprite.Color);
+            Spark::Renderer2D::DrawQuad(tc.GetTransform(), sprite.SubTexture, sprite.Color);
         } else if (sprite.TextureHandle != 0) {
             auto texture = Spark::AssetManager::GetAsset<Texture2D>(sprite.TextureHandle);
             if (texture) {
-                Spark::Renderer2D::DrawQuad(transform.GetTransform(), texture, sprite.Color);
-            } else {
-                Spark::Renderer2D::DrawQuad(transform.GetTransform(), sprite.Color);
+                Spark::Renderer2D::DrawQuad(tc.GetTransform(), texture, sprite.Color);
             }
         } else {
-            Spark::Renderer2D::DrawQuad(transform.GetTransform(), sprite.Color);
+            Spark::Renderer2D::DrawQuad(tc.GetTransform(), sprite.Color);
         }
     }
 
     // Circles
     auto circleView = m_Registry.view<TransformComponent, CircleRendererComponent>();
     for (auto e : circleView) {
-        auto& transform = circleView.get<TransformComponent>(e);
+        auto& tc = circleView.get<TransformComponent>(e);
         auto& circle = circleView.get<CircleRendererComponent>(e);
         
-        Spark::Renderer2D::DrawCircle(transform.GetTransform(), circle.Color, circle.Thickness, circle.Fade);
+        Spark::Renderer2D::DrawCircle(tc.GetTransform(), circle.Color, circle.Thickness, circle.Fade);
     }
 
     Spark::Renderer2D::EndScene();
+}
+
+void Scene::Render(const OrthographicCamera& camera) {
+    Spark::Renderer2D::BeginScene(camera);
+
+    // Sprites
+    auto spriteView = m_Registry.view<TransformComponent, SpriteRendererComponent>();
+    for (auto e : spriteView) {
+        auto& tc = spriteView.get<TransformComponent>(e);
+        auto& sprite = spriteView.get<SpriteRendererComponent>(e);
+        
+        if (sprite.SubTexture) {
+            Spark::Renderer2D::DrawQuad(tc.GetTransform(), sprite.SubTexture, sprite.Color);
+        } else if (sprite.TextureHandle != 0) {
+            auto texture = Spark::AssetManager::GetAsset<Texture2D>(sprite.TextureHandle);
+            if (texture) {
+                Spark::Renderer2D::DrawQuad(tc.GetTransform(), texture, sprite.Color);
+            }
+        } else {
+            Spark::Renderer2D::DrawQuad(tc.GetTransform(), sprite.Color);
+        }
+    }
+
+    // Circles
+    auto circleView = m_Registry.view<TransformComponent, CircleRendererComponent>();
+    for (auto e : circleView) {
+        auto& tc = circleView.get<TransformComponent>(e);
+        auto& circle = circleView.get<CircleRendererComponent>(e);
+        
+        Spark::Renderer2D::DrawCircle(tc.GetTransform(), circle.Color, circle.Thickness, circle.Fade);
+    }
+
+    Spark::Renderer2D::EndScene();
+}
+
+void Scene::RenderRuntime() {
+    Entity cameraEntity = GetPrimaryCameraEntity();
+    if (cameraEntity) {
+        auto& cameraComp = cameraEntity.GetComponent<CameraComponent>();
+        auto& transform = cameraEntity.GetComponent<TransformComponent>();
+
+        // SP_INFO("Rendering with camera at " + std::to_string(transform.Translation.x) + ", " + std::to_string(transform.Translation.y));
+
+        Render(cameraComp.Camera.GetProjection(), transform.GetTransform());
+    } else {
+        // SP_WARN("No primary camera found for runtime rendering!");
+    }
+}
+
+Entity Scene::GetPrimaryCameraEntity()
+{
+    auto cameraView = m_Registry.view<CameraComponent>();
+    for (auto entity : cameraView)
+    {
+        auto& camera = cameraView.get<CameraComponent>(entity);
+        if (camera.Primary)
+        {
+            return { entity, this };
+        }
+    }
+    return {};
 }

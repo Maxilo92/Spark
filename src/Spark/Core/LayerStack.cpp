@@ -42,3 +42,22 @@ void LayerStack::PopOverlay(Layer* overlay) {
         m_Layers.erase(it);
     }
 }
+
+void LayerStack::Clear(bool keepOverlays) {
+    if (keepOverlays) {
+        // Only clear up to m_LayerInsertIndex
+        for (uint32_t i = 0; i < m_LayerInsertIndex; i++) {
+            m_Layers[i]->OnDetach();
+            delete m_Layers[i];
+        }
+        m_Layers.erase(m_Layers.begin(), m_Layers.begin() + m_LayerInsertIndex);
+        m_LayerInsertIndex = 0;
+    } else {
+        for (Layer* layer : m_Layers) {
+            layer->OnDetach();
+            delete layer;
+        }
+        m_Layers.clear();
+        m_LayerInsertIndex = 0;
+    }
+}

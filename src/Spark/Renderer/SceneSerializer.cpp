@@ -141,6 +141,7 @@ static void SerializeEntity(YAML::Emitter& out, Entity entity) {
         out << YAML::Key << "Friction" << YAML::Value << bc2d.Friction;
         out << YAML::Key << "Restitution" << YAML::Value << bc2d.Restitution;
         out << YAML::Key << "RestitutionThreshold" << YAML::Value << bc2d.RestitutionThreshold;
+        out << YAML::Key << "IsSensor" << YAML::Value << bc2d.IsSensor;
         out << YAML::EndMap;
     }
 
@@ -154,6 +155,15 @@ static void SerializeEntity(YAML::Emitter& out, Entity entity) {
         out << YAML::Key << "Friction" << YAML::Value << cc2d.Friction;
         out << YAML::Key << "Restitution" << YAML::Value << cc2d.Restitution;
         out << YAML::Key << "RestitutionThreshold" << YAML::Value << cc2d.RestitutionThreshold;
+        out << YAML::Key << "IsSensor" << YAML::Value << cc2d.IsSensor;
+        out << YAML::EndMap;
+    }
+
+    if (entity.HasComponent<LuaScriptComponent>()) {
+        out << YAML::Key << "LuaScriptComponent";
+        out << YAML::BeginMap;
+        auto& script = entity.GetComponent<LuaScriptComponent>();
+        out << YAML::Key << "Path" << YAML::Value << script.Path;
         out << YAML::EndMap;
     }
 
@@ -175,6 +185,27 @@ static void SerializeEntity(YAML::Emitter& out, Entity entity) {
         out << YAML::BeginMap;
         auto& listener = entity.GetComponent<AudioListenerComponent>();
         out << YAML::Key << "Active" << YAML::Value << listener.Active;
+        out << YAML::EndMap;
+    }
+
+    if (entity.HasComponent<CameraComponent>()) {
+        out << YAML::Key << "CameraComponent";
+        out << YAML::BeginMap;
+        auto& cc = entity.GetComponent<CameraComponent>();
+        auto& camera = cc.Camera;
+
+        out << YAML::Key << "Camera" << YAML::BeginMap;
+        out << YAML::Key << "ProjectionType" << YAML::Value << (int)camera.GetProjectionType();
+        out << YAML::Key << "PerspectiveFOV" << YAML::Value << camera.GetPerspectiveVerticalFOV();
+        out << YAML::Key << "PerspectiveNear" << YAML::Value << camera.GetPerspectiveNearClip();
+        out << YAML::Key << "PerspectiveFar" << YAML::Value << camera.GetPerspectiveFarClip();
+        out << YAML::Key << "OrthographicSize" << YAML::Value << camera.GetOrthographicSize();
+        out << YAML::Key << "OrthographicNear" << YAML::Value << camera.GetOrthographicNearClip();
+        out << YAML::Key << "OrthographicFar" << YAML::Value << camera.GetOrthographicFarClip();
+        out << YAML::EndMap;
+
+        out << YAML::Key << "Primary" << YAML::Value << cc.Primary;
+        out << YAML::Key << "FixedAspectRatio" << YAML::Value << cc.FixedAspectRatio;
         out << YAML::EndMap;
     }
 
@@ -277,6 +308,8 @@ bool SceneSerializer::Deserialize(const std::string& filepath) {
                 bc2d.Friction = boxCollider2DComponent["Friction"].as<float>();
                 bc2d.Restitution = boxCollider2DComponent["Restitution"].as<float>();
                 bc2d.RestitutionThreshold = boxCollider2DComponent["RestitutionThreshold"].as<float>();
+                if (boxCollider2DComponent["IsSensor"])
+                    bc2d.IsSensor = boxCollider2DComponent["IsSensor"].as<bool>();
             }
 
             auto circleCollider2DComponent = entity["CircleCollider2DComponent"];
@@ -288,6 +321,14 @@ bool SceneSerializer::Deserialize(const std::string& filepath) {
                 cc2d.Friction = circleCollider2DComponent["Friction"].as<float>();
                 cc2d.Restitution = circleCollider2DComponent["Restitution"].as<float>();
                 cc2d.RestitutionThreshold = circleCollider2DComponent["RestitutionThreshold"].as<float>();
+                if (circleCollider2DComponent["IsSensor"])
+                    cc2d.IsSensor = circleCollider2DComponent["IsSensor"].as<bool>();
+            }
+
+            auto luaScriptComponent = entity["LuaScriptComponent"];
+            if (luaScriptComponent) {
+                auto& script = deserializedEntity.AddComponent<LuaScriptComponent>();
+                script.Path = luaScriptComponent["Path"].as<std::string>();
             }
 
             auto audioSourceComponent = entity["AudioSourceComponent"];
@@ -305,6 +346,23 @@ bool SceneSerializer::Deserialize(const std::string& filepath) {
             if (audioListenerComponent) {
                 auto& listener = deserializedEntity.AddComponent<AudioListenerComponent>();
                 listener.Active = audioListenerComponent["Active"].as<bool>();
+            }
+
+            auto cameraComponent = entity["CameraComponent"];
+            if (cameraComponent) {
+                auto& cc = deserializedEntity.AddComponent<CameraComponent>();
+                auto cameraNode = cameraComponent["Camera"];
+                if (cameraNode) {
+                    cc.Camera.SetProjectionType((Spark::SceneCamera::ProjectionType)cameraNode["ProjectionType"].as<int>());
+                    cc.Camera.SetPerspectiveVerticalFOV(cameraNode["PerspectiveFOV"].as<float>());
+                    cc.Camera.SetPerspectiveNearClip(cameraNode["PerspectiveNear"].as<float>());
+                    cc.Camera.SetPerspectiveFarClip(cameraNode["PerspectiveFar"].as<float>());
+                    cc.Camera.SetOrthographicSize(cameraNode["OrthographicSize"].as<float>());
+                    cc.Camera.SetOrthographicNearClip(cameraNode["OrthographicNear"].as<float>());
+                    cc.Camera.SetOrthographicFarClip(cameraNode["OrthographicFar"].as<float>());
+                }
+                cc.Primary = cameraComponent["Primary"].as<bool>();
+                cc.FixedAspectRatio = cameraComponent["FixedAspectRatio"].as<bool>();
             }
         }
     }

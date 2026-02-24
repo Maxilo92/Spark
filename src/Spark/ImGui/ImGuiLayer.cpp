@@ -15,6 +15,7 @@ void ImGuiLayer::OnAttach() {
     // GENAU DAS WAS DU WOLLTEST:
     // Fenster lassen sich nur noch über die Titelleiste verschieben!
     io.ConfigWindowsMoveFromTitleBarOnly = true;
+    io.ConfigWindowsResizeFromEdges = true;
     
     io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
 

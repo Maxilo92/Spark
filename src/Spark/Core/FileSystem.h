@@ -9,6 +9,7 @@ namespace Spark {
     class FileSystem {
     public:
         static void Init();
+        static void SetProjectRoot(const std::filesystem::path& root);
         
         static void Mount(const std::string& virtualPath, const std::filesystem::path& physicalPath);
         static void Unmount(const std::string& virtualPath);

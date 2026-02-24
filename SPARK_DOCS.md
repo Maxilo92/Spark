@@ -143,21 +143,50 @@ Projects are bundled into a single `.spark` archive (ZIP format).
 *   `vec2(x, y)`: 2D vector for physics forces/velocities.
 
 ### 8.2 Global Functions
-*   `Log(message)`: Prints a trace message to the Engine Console.
+*   `Log(message)`: Prints a message to the Engine Console.
+*   `Internal_GetRigidbody(id)`: Returns the Rigidbody2D component of the entity.
+*   `Internal_GetTransform(id)`: Returns the Transform component of the entity.
+*   `Internal_GetAudio(id)`: Returns the AudioSource component of the entity.
+*   `Internal_GetTag(id)`: Returns the tag (name) of the entity.
+*   `Internal_FindEntityByName(name)`: Returns the ID of the first entity with the given name.
+*   `Internal_DestroyEntity(id)`: Removes the entity from the scene.
 
-### 8.3 Components
-*   **Transform**: Access via `self.Transform`.
-    *   `Translation`, `Rotation`, `Scale`.
-*   **Rigidbody2D**:
-    *   `ApplyForce(vec2)`: Apply continuous force.
-    *   `ApplyImpulse(vec2)`: Apply instant velocity change.
-    *   `SetLinearVelocity(vec2)`: Set velocity directly.
-    *   `GetPosition()`: Current physics position.
-    *   `SetGravityScale(float)`: Change gravity impact.
+### 8.3 Component API
 
-### 8.4 Input
-*   `Input.IsKeyPressed(Keys.W)`: Returns true if key is held.
-*   `Input.IsMouseButtonPressed(0)`: Returns true if left mouse is clicked.
+#### Rigidbody2D
+*   `ApplyLinearImpulse(vec2, wake)`: Apply instant velocity change to center.
+*   `SetLinearVelocity(vec2)`: Set velocity directly.
+*   `GetLinearVelocity()`: Returns `vec2` of current velocity.
+*   `SetTransform(vec2)`: Teleport to position.
+*   `GetPosition()`: Returns `vec2` of current physics position.
+*   `SetGravityScale(float)`: Change gravity impact.
+*   `GetGravityScale()`: Returns current scale.
+*   `FixedRotation`: Boolean property.
+*   `Type`: Enum `BodyType.Static`, `BodyType.Kinematic`, `BodyType.Dynamic`.
+
+#### AudioSource
+*   `Play()`: Starts playback.
+*   `Stop()`: Stops playback and resets to start.
+*   `IsPlaying()`: Returns boolean.
+*   `SetVolume(float)`: 0.0 to 1.0.
+*   `SetPitch(float)`: 0.5 to 2.0.
+
+#### Transform
+*   `Translation`: `vec3` property.
+*   `Rotation`: `vec3` property.
+*   `Scale`: `vec3` property.
+
+### 8.4 Event Hooks
+Implement these in your Lua script to receive callbacks:
+*   `OnStart()`: Initialization.
+*   `OnUpdate(dt)`: Every frame update.
+*   `OnCollisionBegin(otherID)`: Triggered when physics collision or trigger starts.
+*   `OnCollisionEnd(otherID)`: Triggered when physics collision or trigger ends.
+
+### 8.5 Input
+*   `Input.IsKeyPressed(Keys.[NAME])`: Returns true if key is held.
+*   `Input.IsMouseButtonPressed(button)`: Returns true if button is held.
+*   `Input.GetMousePosition()`: Returns `vec2`.
 
 ---
 
@@ -170,13 +199,20 @@ Projects are bundled into a single `.spark` archive (ZIP format).
 | **Circle Renderer**| Renders a 2D circle | `Color`, `Thickness`, `Fade` |
 | **Lua Script** | Attaches code logic | `Path` (Path to .lua) |
 | **Rigidbody2D** | Physics body | `Type` (Static/Dynamic), `FixedRotation` |
-| **BoxCollider2D** | Rectangular collision | `Size`, `Offset`, `Friction` |
+| **BoxCollider2D** | Rectangular collision | `Size`, `Offset`, `Friction`, `IsSensor` |
 | **Audio Source** | Plays sound effects | `Path`, `Volume`, `Loop`, `Spatial` |
 | **Tag** | Entity name | `Tag` (string) |
 
 ---
 
-## 10. Development Workflow
+## 10. Demos & Examples
+
+### The Spark Adventure
+A comprehensive demo showcasing all engine features:
+- **Location**: `assets/scenes/Adventure.scene`
+- **Scripts**: `assets/scripts/adventure/`
+- **Features**: Physics movement, Enemy AI, Trigger-based collectibles, Smooth Camera follow.
+
 
 ### Building the Engine
 Use the optimized Python script:

@@ -20,6 +20,8 @@ imgui.ini
 .DS_Store
 crashes/
 .vscode/
+.gemini/
+GEMINI.md
 
 # Local Editor Settings (should not be in repo)
 editor_settings.yaml

@@ -11,6 +11,7 @@
 #include "Renderer2D.h"
 #include "ImGuizmo.h"
 #include "Log.h"
+#include "Input.h"
 #include "Command.h"
 #include "TransformCommand.h"
 #include <box2d/box2d.h>
@@ -27,57 +28,71 @@ void TriangleLayer::OnAttach() {
     m_ActiveScene = m_EditorScene;
 
     m_SceneHierarchyPanel.SetContext(m_ActiveScene);
-
     LoadEditorSettings();
+    m_ContentBrowserPanel = Spark::ContentBrowserPanel();
 
-    // --- PHYSICS DEMO SETUP ---
-    auto ball = m_EditorScene->CreateEntity("Ball");
-    ball.AddComponent<CircleRendererComponent>(glm::vec4{0.8f, 0.2f, 0.3f, 1.0f});
-    ball.AddComponent<Rigidbody2DComponent>(Rigidbody2DComponent::BodyType::Dynamic);
-    ball.AddComponent<LuaScriptComponent>("assets/scripts/Ball.lua");
-    auto& ballCollider = ball.AddComponent<CircleCollider2DComponent>();
-    ballCollider.Radius = 0.5f;
-    ballCollider.Restitution = 0.8f;
-    ballCollider.Friction = 0.1f;
-    if (ball.HasComponent<TransformComponent>())
-        ball.GetComponent<TransformComponent>().Scale = { 0.2f, 0.2f, 1.0f };
-
-    auto wallBottom = m_EditorScene->CreateEntity("Wall Bottom");
-    if (wallBottom.HasComponent<TransformComponent>()) {
-        wallBottom.GetComponent<TransformComponent>().Translation = { 0.0f, -0.95f, 0.0f };
-        wallBottom.GetComponent<TransformComponent>().Scale = { 3.2f, 0.1f, 1.0f };
+    bool sceneLoaded = false;
+    if (Spark::ProjectManager::HasActiveProject()) {
+        const auto& project = Spark::ProjectManager::GetActiveProject();
+        if (!project.StartScene.empty()) {
+            SceneSerializer serializer(m_EditorScene);
+            if (serializer.Deserialize(project.StartScene)) {
+                SP_INFO("Loaded project start scene: " + project.StartScene);
+                sceneLoaded = true;
+            }
+        }
     }
-    wallBottom.AddComponent<SpriteRendererComponent>(glm::vec4{0.3f, 0.3f, 0.3f, 1.0f});
-    wallBottom.AddComponent<Rigidbody2DComponent>(Rigidbody2DComponent::BodyType::Static);
-    wallBottom.AddComponent<BoxCollider2DComponent>().Size = { 1.6f, 0.05f };
 
-    auto wallTop = m_EditorScene->CreateEntity("Wall Top");
-    if (wallTop.HasComponent<TransformComponent>()) {
-        wallTop.GetComponent<TransformComponent>().Translation = { 0.0f, 0.95f, 0.0f };
-        wallTop.GetComponent<TransformComponent>().Scale = { 3.2f, 0.1f, 1.0f };
-    }
-    wallTop.AddComponent<SpriteRendererComponent>(glm::vec4{0.3f, 0.3f, 0.3f, 1.0f});
-    wallTop.AddComponent<Rigidbody2DComponent>(Rigidbody2DComponent::BodyType::Static);
-    wallTop.AddComponent<BoxCollider2DComponent>().Size = { 1.6f, 0.05f };
+    if (!sceneLoaded) {
+        // --- PHYSICS DEMO SETUP ---
+        auto ball = m_EditorScene->CreateEntity("Ball");
+        ball.AddComponent<CircleRendererComponent>(glm::vec4{ 0.8f, 0.2f, 0.3f, 1.0f });
+        ball.AddComponent<Rigidbody2DComponent>(Rigidbody2DComponent::BodyType::Dynamic);
+        ball.AddComponent<LuaScriptComponent>("assets/scripts/Ball.lua");
+        auto& ballCollider = ball.AddComponent<CircleCollider2DComponent>();
+        ballCollider.Radius = 0.5f;
+        ballCollider.Restitution = 0.8f;
+        ballCollider.Friction = 0.1f;
+        if (ball.HasComponent<TransformComponent>())
+            ball.GetComponent<TransformComponent>().Scale = { 0.2f, 0.2f, 1.0f };
 
-    auto wallLeft = m_EditorScene->CreateEntity("Wall Left");
-    if (wallLeft.HasComponent<TransformComponent>()) {
-        wallLeft.GetComponent<TransformComponent>().Translation = { -1.65f, 0.0f, 0.0f };
-        wallLeft.GetComponent<TransformComponent>().Scale = { 0.1f, 2.0f, 1.0f };
-    }
-    wallLeft.AddComponent<SpriteRendererComponent>(glm::vec4{0.3f, 0.3f, 0.3f, 1.0f});
-    wallLeft.AddComponent<Rigidbody2DComponent>(Rigidbody2DComponent::BodyType::Static);
-    wallLeft.AddComponent<BoxCollider2DComponent>().Size = { 0.05f, 1.0f };
+        auto wallBottom = m_EditorScene->CreateEntity("Wall Bottom");
+        if (wallBottom.HasComponent<TransformComponent>()) {
+            wallBottom.GetComponent<TransformComponent>().Translation = { 0.0f, -0.95f, 0.0f };
+            wallBottom.GetComponent<TransformComponent>().Scale = { 3.2f, 0.1f, 1.0f };
+        }
+        wallBottom.AddComponent<SpriteRendererComponent>(glm::vec4{ 0.3f, 0.3f, 0.3f, 1.0f });
+        wallBottom.AddComponent<Rigidbody2DComponent>(Rigidbody2DComponent::BodyType::Static);
+        wallBottom.AddComponent<BoxCollider2DComponent>().Size = { 1.6f, 0.05f };
 
-    auto wallRight = m_EditorScene->CreateEntity("Wall Right");
-    if (wallRight.HasComponent<TransformComponent>()) {
-        wallRight.GetComponent<TransformComponent>().Translation = { 1.65f, 0.0f, 0.0f };
-        wallRight.GetComponent<TransformComponent>().Scale = { 0.1f, 2.0f, 1.0f };
+        auto wallTop = m_EditorScene->CreateEntity("Wall Top");
+        if (wallTop.HasComponent<TransformComponent>()) {
+            wallTop.GetComponent<TransformComponent>().Translation = { 0.0f, 0.95f, 0.0f };
+            wallTop.GetComponent<TransformComponent>().Scale = { 3.2f, 0.1f, 1.0f };
+        }
+        wallTop.AddComponent<SpriteRendererComponent>(glm::vec4{ 0.3f, 0.3f, 0.3f, 1.0f });
+        wallTop.AddComponent<Rigidbody2DComponent>(Rigidbody2DComponent::BodyType::Static);
+        wallTop.AddComponent<BoxCollider2DComponent>().Size = { 1.6f, 0.05f };
+
+        auto wallLeft = m_EditorScene->CreateEntity("Wall Left");
+        if (wallLeft.HasComponent<TransformComponent>()) {
+            wallLeft.GetComponent<TransformComponent>().Translation = { -1.65f, 0.0f, 0.0f };
+            wallLeft.GetComponent<TransformComponent>().Scale = { 0.1f, 2.0f, 1.0f };
+        }
+        wallLeft.AddComponent<SpriteRendererComponent>(glm::vec4{ 0.3f, 0.3f, 0.3f, 1.0f });
+        wallLeft.AddComponent<Rigidbody2DComponent>(Rigidbody2DComponent::BodyType::Static);
+        wallLeft.AddComponent<BoxCollider2DComponent>().Size = { 0.05f, 1.0f };
+
+        auto wallRight = m_EditorScene->CreateEntity("Wall Right");
+        if (wallRight.HasComponent<TransformComponent>()) {
+            wallRight.GetComponent<TransformComponent>().Translation = { 1.65f, 0.0f, 0.0f };
+            wallRight.GetComponent<TransformComponent>().Scale = { 0.1f, 2.0f, 1.0f };
+        }
+        wallRight.AddComponent<SpriteRendererComponent>(glm::vec4{ 0.3f, 0.3f, 0.3f, 1.0f });
+        wallRight.AddComponent<Rigidbody2DComponent>(Rigidbody2DComponent::BodyType::Static);
+        wallRight.AddComponent<BoxCollider2DComponent>().Size = { 0.05f, 1.0f };
+        // --- END PHYSICS DEMO SETUP ---
     }
-    wallRight.AddComponent<SpriteRendererComponent>(glm::vec4{0.3f, 0.3f, 0.3f, 1.0f});
-    wallRight.AddComponent<Rigidbody2DComponent>(Rigidbody2DComponent::BodyType::Static);
-    wallRight.AddComponent<BoxCollider2DComponent>().Size = { 0.05f, 1.0f };
-    // --- END PHYSICS DEMO SETUP ---
 
     m_VertexArray = std::make_shared<VertexArray>();
     float vertices[4 * 5] = {
@@ -171,6 +186,9 @@ void TriangleLayer::OnUpdate(float dt) {
     if (m_Framebuffer && m_ViewportSize.x > 0.0f && m_ViewportSize.y > 0.0f &&
        (m_Framebuffer->GetSpecification().Width != m_ViewportSize.x || m_Framebuffer->GetSpecification().Height != m_ViewportSize.y)) {
         m_Framebuffer->Resize((uint32_t)m_ViewportSize.x, (uint32_t)m_ViewportSize.y);
+        
+        if (m_ActiveScene)
+            m_ActiveScene->OnViewportResize((uint32_t)m_ViewportSize.x, (uint32_t)m_ViewportSize.y);
     }
 
     if (m_ActiveScene)
@@ -181,8 +199,12 @@ void TriangleLayer::OnUpdate(float dt) {
         glClearColor(0.1f, 0.1f, 0.1f, 1.0f);
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-        if (m_ActiveScene)
-            m_ActiveScene->Render(m_Camera);
+        if (m_ActiveScene) {
+            if (m_ActiveScene->IsSimulating())
+                m_ActiveScene->RenderRuntime();
+            else
+                m_ActiveScene->Render(m_Camera);
+        }
 
         m_Framebuffer->Unbind();
     }
@@ -247,7 +269,7 @@ void TriangleLayer::OnImGuiRender() {
             ImGui::Separator();
             if (ImGui::MenuItem("Save Project")) {
                 if (Spark::ProjectManager::HasActiveProject()) {
-                    Spark::ProjectManager::SaveProject(Spark::ProjectManager::GetActiveProjectPath());
+                    Spark::ProjectManager::SaveProject();
                 } else {
                     m_ShowSaveProjectPopup = true;
                 }
@@ -299,6 +321,11 @@ void TriangleLayer::OnImGuiRender() {
         }
 
         if (ImGui::BeginMenu("Help")) {
+            if (ImGui::MenuItem("Changelog")) {
+                m_ShowChangelog = true;
+                m_ChangelogPanel.LoadChangelog("CHANGELOG.md");
+                m_ChangelogPanel.SetVersionFilter(""); // Show all in manual mode
+            }
             if (ImGui::MenuItem("About Spark")) {
                 m_ShowAboutPopup = true;
             }
@@ -317,6 +344,9 @@ void TriangleLayer::OnImGuiRender() {
 
         ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2{ 0, 0 });
         ImGui::Begin("Viewport", &m_ShowViewport, window_flags);
+        
+        // Update input system with viewport focus state
+        Spark::Input::SetViewportFocused(ImGui::IsWindowFocused());
         
         ImVec2 viewportPanelSize = ImGui::GetContentRegionAvail();
         
@@ -342,6 +372,52 @@ void TriangleLayer::OnImGuiRender() {
         ImGui::Image((void*)(intptr_t)textureID, displaySize, ImVec2{ 0, 1 }, ImVec2{ 1, 0 });
         
         m_ViewportRectMin = { ImGui::GetItemRectMin().x, ImGui::GetItemRectMin().y };
+
+        // --- DRAG & DROP TARGET (VIEWPORT) ---
+        if (ImGui::BeginDragDropTarget()) {
+            if (const ImGuiPayload* payload = ImGui::AcceptDragDropPayload("ASSET_BROWSER_ITEM")) {
+                std::filesystem::path path = (const char*)payload->Data;
+                SP_INFO("Viewport: Dropped file: " + path.string());
+                
+                if (path.extension() == ".png" || path.extension() == ".jpg") {
+                    Entity selected = m_SceneHierarchyPanel.GetSelectedEntity();
+                    if (selected) {
+                        if (!selected.HasComponent<SpriteRendererComponent>())
+                            selected.AddComponent<SpriteRendererComponent>();
+                        
+                        auto& src = selected.GetComponent<SpriteRendererComponent>();
+                        src.TextureHandle = Spark::AssetManager::ImportAsset(path);
+                    } else {
+                        // Create new entity
+                        Entity newEntity = m_ActiveScene->CreateEntity("New Sprite");
+                        newEntity.AddComponent<SpriteRendererComponent>();
+                        auto& src = newEntity.GetComponent<SpriteRendererComponent>();
+                        src.TextureHandle = Spark::AssetManager::ImportAsset(path);
+                        m_SceneHierarchyPanel.SetSelectedEntity(newEntity);
+                    }
+                } else if (path.extension() == ".lua") {
+                    Entity selected = m_SceneHierarchyPanel.GetSelectedEntity();
+                    if (selected) {
+                        if (!selected.HasComponent<LuaScriptComponent>())
+                            selected.AddComponent<LuaScriptComponent>();
+                        auto& script = selected.GetComponent<LuaScriptComponent>();
+                        script.Path = path.string();
+                    }
+                } else if (path.extension() == ".scene") {
+                    if (m_ActiveScene->IsSimulating())
+                        m_ActiveScene->OnRuntimeStop();
+                    
+                    m_EditorScene = std::make_shared<Scene>();
+                    SceneSerializer serializer(m_EditorScene);
+                    if (serializer.Deserialize(path.string())) {
+                        m_ActiveScene = m_EditorScene;
+                        m_SceneHierarchyPanel.SetContext(m_ActiveScene);
+                        SP_INFO("Scene loaded: " + path.string());
+                    }
+                }
+            }
+            ImGui::EndDragDropTarget();
+        }
 
         // --- MOUSE DRAGGING LOGIC ---
         if (m_ActiveScene && m_ActiveScene->IsSimulating() && ImGui::IsMouseDown(ImGuiMouseButton_Left) && ImGui::IsWindowHovered()) {
@@ -465,8 +541,7 @@ void TriangleLayer::OnImGuiRender() {
 
             ImGui::Separator();
             if (ImGui::Button("Save", ImVec2(120, 0))) {
-                std::string filename = std::string(m_SaveProjectNameBuffer) + ".spark";
-                if (Spark::ProjectManager::SaveProject(filename)) {
+                if (Spark::ProjectManager::SaveProject()) {
                     m_ShowSaveProjectPopup = false;
                 }
             }
@@ -487,7 +562,7 @@ void TriangleLayer::OnImGuiRender() {
                 if (p.path().extension() == ".spark") {
                     std::string filename = p.path().filename().string();
                     if (ImGui::Selectable(filename.c_str())) {
-                        if (Spark::ProjectManager::LoadProject(p.path())) {
+                        if (Spark::ProjectManager::OpenProject(p.path())) {
                             m_ActiveScene = m_EditorScene;
                             m_SceneHierarchyPanel.SetContext(m_ActiveScene);
                             m_PlanPanel.Load();
@@ -512,6 +587,7 @@ void TriangleLayer::OnImGuiRender() {
         ImGui::SetNextWindowPos(center, ImGuiCond_Appearing, ImVec2(0.5f, 0.5f));
         
         if (ImGui::BeginPopupModal("About Spark", &m_ShowAboutPopup, ImGuiWindowFlags_AlwaysAutoResize)) {
+            ImGui::PushTextWrapPos(ImGui::GetFontSize() * 20.0f);
             ImGui::TextDisabled("Spark Engine v%s", SPARK_VERSION_STR);
             ImGui::Separator();
             
@@ -530,9 +606,12 @@ void TriangleLayer::OnImGuiRender() {
             if (ImGui::Button("OK", ImVec2(120, 0))) {
                 m_ShowAboutPopup = false;
             }
+            ImGui::PopTextWrapPos();
             ImGui::EndPopup();
         }
     }
+
+    m_ChangelogPanel.OnImGuiRender(&m_ShowChangelog);
 }
 
 void TriangleLayer::OnEvent(Event& event) {
@@ -556,6 +635,8 @@ void TriangleLayer::SaveEditorSettings() {
     out << YAML::Key << "PlanPanel" << YAML::Value << m_ShowPlanPanel;
     out << YAML::Key << "Settings" << YAML::Value << m_ShowSettings;
     out << YAML::EndMap;
+
+    out << YAML::Key << "LastVersion" << YAML::Value << SPARK_VERSION_STR;
     out << YAML::EndMap;
 
     std::ofstream fout("editor_settings.yaml");
@@ -578,6 +659,21 @@ void TriangleLayer::LoadEditorSettings() {
             if (visibility["Console"]) m_ShowConsole = visibility["Console"].as<bool>();
             if (visibility["PlanPanel"]) m_ShowPlanPanel = visibility["PlanPanel"].as<bool>();
             if (visibility["Settings"]) m_ShowSettings = visibility["Settings"].as<bool>();
+        }
+
+        if (data["LastVersion"]) {
+            std::string lastVersion = data["LastVersion"].as<std::string>();
+            if (lastVersion != SPARK_VERSION_STR) {
+                m_ShowChangelog = true;
+                m_ChangelogPanel.LoadChangelog("CHANGELOG.md");
+                m_ChangelogPanel.SetVersionFilter(SPARK_VERSION_STR);
+                SP_INFO("New version detected: " + std::string(SPARK_VERSION_STR) + ". Showing changelog.");
+            }
+        } else {
+            // First time or no version found
+            m_ShowChangelog = true;
+            m_ChangelogPanel.LoadChangelog("CHANGELOG.md");
+            m_ChangelogPanel.SetVersionFilter(SPARK_VERSION_STR);
         }
     } catch (const std::exception& e) {
         SP_ERROR("Failed to load editor settings: " + std::string(e.what()));

@@ -73,7 +73,10 @@ namespace Spark {
                 ImGui::SameLine();
                 ImGui::TextColored(color, "%s", levelStr);
                 ImGui::SameLine();
+                
+                ImGui::PushTextWrapPos(0.0f);
                 ImGui::TextUnformatted(msg.Message.c_str());
+                ImGui::PopTextWrapPos();
             }
 
             if (m_AutoScroll && ImGui::GetScrollY() >= ImGui::GetScrollMaxY())

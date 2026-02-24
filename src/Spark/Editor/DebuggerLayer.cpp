@@ -116,16 +116,27 @@ void DebuggerLayer::OnImGuiRender() {
             // Mouse
             ImVec2 mousePos = ImGui::GetMousePos();
             ImGui::Text("Mouse Pos: %.1f, %.1f", mousePos.x, mousePos.y);
-            ImGui::Text("Left Mouse: %s", ImGui::IsMouseDown(0) ? "DOWN" : "UP");
+            ImGui::Text("Left Mouse (Raw): %s", Spark::Input::IsMouseButtonRaw(0) ? "DOWN" : "UP");
+            ImGui::Text("Capture: Keyboard=%d, Mouse=%d", ImGui::GetIO().WantCaptureKeyboard, ImGui::GetIO().WantCaptureMouse);
             
             ImGui::Separator();
-            ImGui::Text("Key State (Spark/GLFW):");
-            ImGui::Columns(2, "KeyCols");
-            ImGui::Text("W (87): %s", Spark::Input::IsKeyPressed(87) ? "DOWN" : "up");
-            ImGui::Text("S (83): %s", Spark::Input::IsKeyPressed(83) ? "DOWN" : "up");
+            ImGui::Text("Key State (Raw GLFW):");
+            ImGui::Columns(2, "RawKeyCols");
+            ImGui::Text("W: %s", Spark::Input::IsKeyRaw(87) ? "DOWN" : "up");
+            ImGui::Text("S: %s", Spark::Input::IsKeyRaw(83) ? "DOWN" : "up");
             ImGui::NextColumn();
-            ImGui::Text("A (65): %s", Spark::Input::IsKeyPressed(65) ? "DOWN" : "up");
-            ImGui::Text("D (68): %s", Spark::Input::IsKeyPressed(68) ? "DOWN" : "up");
+            ImGui::Text("A: %s", Spark::Input::IsKeyRaw(65) ? "DOWN" : "up");
+            ImGui::Text("D: %s", Spark::Input::IsKeyRaw(68) ? "DOWN" : "up");
+            ImGui::Columns(1);
+
+            ImGui::Separator();
+            ImGui::Text("Key State (Game/Filtered):");
+            ImGui::Columns(2, "FilteredKeyCols");
+            ImGui::Text("W: %s", Spark::Input::IsKeyPressed(87) ? "DOWN" : "up");
+            ImGui::Text("S: %s", Spark::Input::IsKeyPressed(83) ? "DOWN" : "up");
+            ImGui::NextColumn();
+            ImGui::Text("A: %s", Spark::Input::IsKeyPressed(65) ? "DOWN" : "up");
+            ImGui::Text("D: %s", Spark::Input::IsKeyPressed(68) ? "DOWN" : "up");
             ImGui::Columns(1);
         }
 
@@ -163,7 +174,9 @@ void DebuggerLayer::OnImGuiRender() {
                 }
             }
 
+            ImGui::PushTextWrapPos(0.0f);
             ImGui::TextDisabled("Restarts the engine to capture logs from the very first frame.");
+            ImGui::PopTextWrapPos();
         }
 
         ImGui::End();

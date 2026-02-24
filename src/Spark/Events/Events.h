@@ -59,3 +59,35 @@ public:
     KeyReleasedEvent(int keycode) : KeyEvent(keycode) {}
     EventType GetType() const override { return EventType::KeyReleased; }
 };
+
+class MouseMovedEvent : public Event {
+public:
+    MouseMovedEvent(float x, float y) : MouseX(x), MouseY(y) {}
+    EventType GetType() const override { return EventType::MouseMoved; }
+    float MouseX, MouseY;
+};
+
+class MouseScrolledEvent : public Event {
+public:
+    MouseScrolledEvent(float xOffset, float yOffset) : XOffset(xOffset), YOffset(yOffset) {}
+    EventType GetType() const override { return EventType::MouseScrolled; }
+    float XOffset, YOffset;
+};
+
+class MouseButtonEvent : public Event {
+public:
+    MouseButtonEvent(int button) : Button(button) {}
+    int Button;
+};
+
+class MouseButtonPressedEvent : public MouseButtonEvent {
+public:
+    MouseButtonPressedEvent(int button) : MouseButtonEvent(button) {}
+    EventType GetType() const override { return EventType::MouseButtonPressed; }
+};
+
+class MouseButtonReleasedEvent : public MouseButtonEvent {
+public:
+    MouseButtonReleasedEvent(int button) : MouseButtonEvent(button) {}
+    EventType GetType() const override { return EventType::MouseButtonReleased; }
+};

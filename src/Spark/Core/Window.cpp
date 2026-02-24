@@ -77,10 +77,27 @@ void Window::Init() {
 
     glfwSetMouseButtonCallback(m_Window, [](GLFWwindow* window, int button, int action, int mods) {
         ImGui_ImplGlfw_MouseButtonCallback(window, button, action, mods);
+        WindowData& data = *(WindowData*)glfwGetWindowUserPointer(window);
+
+        switch (action) {
+            case GLFW_PRESS: {
+                MouseButtonPressedEvent event(button);
+                data.EventCallback(event);
+                break;
+            }
+            case GLFW_RELEASE: {
+                MouseButtonReleasedEvent event(button);
+                data.EventCallback(event);
+                break;
+            }
+        }
     });
 
     glfwSetScrollCallback(m_Window, [](GLFWwindow* window, double xoffset, double yoffset) {
         ImGui_ImplGlfw_ScrollCallback(window, xoffset, yoffset);
+        WindowData& data = *(WindowData*)glfwGetWindowUserPointer(window);
+        MouseScrolledEvent event((float)xoffset, (float)yoffset);
+        data.EventCallback(event);
     });
 
     glfwSetCharCallback(m_Window, [](GLFWwindow* window, unsigned int codepoint) {
@@ -89,6 +106,9 @@ void Window::Init() {
 
     glfwSetCursorPosCallback(m_Window, [](GLFWwindow* window, double xpos, double ypos) {
         ImGui_ImplGlfw_CursorPosCallback(window, xpos, ypos);
+        WindowData& data = *(WindowData*)glfwGetWindowUserPointer(window);
+        MouseMovedEvent event((float)xpos, (float)ypos);
+        data.EventCallback(event);
     });
 }
 
@@ -98,7 +118,15 @@ void Window::Shutdown() {
 }
 
 void Window::OnUpdate() {
+    PollEvents();
+    SwapBuffers();
+}
+
+void Window::PollEvents() {
     glfwPollEvents();
+}
+
+void Window::SwapBuffers() {
     glfwSwapBuffers(m_Window);
 }
 

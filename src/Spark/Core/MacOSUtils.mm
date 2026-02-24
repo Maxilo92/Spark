@@ -1,5 +1,6 @@
 #import <Cocoa/Cocoa.h>
 #include "MacOSUtils.h"
+#include "Log.h"
 
 static bool s_ShowAboutRequested = false;
 
@@ -14,6 +15,26 @@ static bool s_ShowAboutRequested = false;
 @end
 
 namespace Spark {
+
+    std::string MacOSUtils::OpenFile(const char* filter) {
+        NSOpenPanel* panel = [NSOpenPanel openPanel];
+        [panel setCanChooseFiles:YES];
+        [panel setCanChooseDirectories:NO];
+        [panel setAllowsMultipleSelection:NO];
+
+        if (filter) {
+            NSString* filterStr = [NSString stringWithUTF8String:filter];
+            NSArray* types = [filterStr componentsSeparatedByString:@";"];
+            [panel setAllowedFileTypes:types];
+        }
+
+        if ([panel runModal] == NSModalResponseOK) {
+            NSURL* url = [[panel URLs] firstObject];
+            return std::string([[url path] UTF8String]);
+        }
+
+        return "";
+    }
 
     void MacOSUtils::SetupApplicationMenu() {
         // Wir warten kurz, bis GLFW das Menü erstellt hat

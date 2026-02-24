@@ -25,12 +25,27 @@ public:
     bool IsSimulating() const { return m_IsSimulating; }
 
     void OnUpdate(float dt);
+    void OnViewportResize(uint32_t width, uint32_t height);
+    
+    void Render(const glm::mat4& projection, const glm::mat4& transform);
     void Render(const OrthographicCamera& camera);
+    void RenderRuntime();
+
+    Entity GetPrimaryCameraEntity();
 
     entt::registry m_Registry;
+
+    struct CollisionEvent {
+        entt::entity Entity;
+        entt::entity Other;
+        bool Begin;
+    };
+    std::vector<CollisionEvent> m_CollisionQueue;
 
 private:
     friend class Entity;
     void* m_PhysicsWorld = nullptr; // b2World*
+    void* m_ContactListener = nullptr; // SparkContactListener*
+    std::vector<entt::entity> m_EntitiesToDestroy;
     bool m_IsSimulating = false;
 };

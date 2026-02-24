@@ -2,16 +2,21 @@
 #include "Version.h"
 #include "DebuggerLayer.h"
 #include "TriangleLayer.h"
+#include "MainMenuLayer.h"
 #include "ScriptEngine.h"
 #include "AudioManager.h"
 #include "FileSystem.h"
 #include "AssetManager.h"
+#include "ProjectManager.h"
 #include "InstanceLock.h"
 #include "Renderer2D.h"
+#include "LoadingScreen.h"
 #include "CrashHandler.h"
 #include "MacOSUtils.h"
 #include "Log.h"
 #include "Input.h"
+#include <yaml-cpp/yaml.h>
+#include <fstream>
 #include <iostream>
 #include <unistd.h>
 #include <mach-o/dyld.h>
@@ -24,119 +29,160 @@ Application::Application() {
     Spark::CrashHandler::Init();
     SP_INFO("Initializing Spark Application...");
 
-    // Sicherstellen, dass nur eine Instanz läuft
+    // Ensure only one instance runs
     Spark::InstanceLock::Lock();
 
-    m_Window = std::make_unique<Window>(1280, 720, "Spark Engine");
+    LoadWindowSettings();
+    if (!m_Window) {
+        m_Window = std::make_unique<Window>(1280, 720, "Spark Engine");
+    }
     m_Window->SetEventCallback(std::bind(&Application::OnEvent, this, std::placeholders::_1));
 
     m_ImGuiLayer = new ImGuiLayer(*m_Window);
-    m_ImGuiLayer->OnAttach(); // Manual attach for splash screen context
+    m_ImGuiLayer->OnAttach();
 
-    // --- START LOADING SEQUENCE ---
-    SetLoadingStatus("Initializing Window & Input...", 0.1f);
+    Spark::ProjectManager::RefreshRecentProjects();
+
+    // --- START LOADING SEQUENCE (STARTUP STATE) ---
+    SetState(ApplicationState::STARTUP);
+    
+    Spark::LoadingScreen::Render(*m_Window, *m_ImGuiLayer, "Initializing Window & Input...", 0.1f);
     Spark::MacOSUtils::SetupApplicationMenu();
     Spark::Input::Init(m_Window->GetNativeWindow());
 
-    SetLoadingStatus("Mounting File Systems...", 0.2f);
+    Spark::LoadingScreen::Render(*m_Window, *m_ImGuiLayer, "Mounting File Systems...", 0.2f);
     Spark::FileSystem::Init();
 
-    SetLoadingStatus("Loading Asset Registry...", 0.4f);
+    Spark::LoadingScreen::Render(*m_Window, *m_ImGuiLayer, "Loading Asset Registry...", 0.4f);
     Spark::AssetManager::Init();
 
-    SetLoadingStatus("Starting Renderer...", 0.6f);
+    Spark::LoadingScreen::Render(*m_Window, *m_ImGuiLayer, "Starting Renderer...", 0.6f);
     Spark::Renderer2D::Init();
 
-    SetLoadingStatus("Initializing Script Engine...", 0.8f);
+    Spark::LoadingScreen::Render(*m_Window, *m_ImGuiLayer, "Initializing Script Engine...", 0.8f);
     ScriptEngine::Init();
 
-    SetLoadingStatus("Starting Audio Engine...", 0.9f);
+    Spark::LoadingScreen::Render(*m_Window, *m_ImGuiLayer, "Starting Audio Engine...", 0.9f);
     Spark::AudioManager::Init();
 
-    SetLoadingStatus("Preparing Editor UI...", 1.0f);
+    Spark::LoadingScreen::Render(*m_Window, *m_ImGuiLayer, "Preparing UI...", 1.0f);
     
     UpdateWindowTitle();
 
     // Final Layers
-    // Note: We don't call PushOverlay(m_ImGuiLayer) here because it would call OnAttach again.
-    // We add it manually to the stack.
     m_LayerStack.PushOverlayManual(m_ImGuiLayer); 
     
-    PushLayer(new DebuggerLayer());
-    PushLayer(new TriangleLayer());
-
-    m_IsLoading = false;
+    // Default transition to Main Menu
+    SetState(ApplicationState::MAIN_MENU);
 }
 
-void Application::SetLoadingStatus(const std::string& status, float progress) {
-    m_LoadingStatus = status;
-    m_LoadingProgress = progress;
-    SP_INFO("Loading: " + status + " (" + std::to_string((int)(progress * 100)) + "%)");
-    
-    // Render splash frame immediately
-    RenderSplashScreen();
-}
+void Application::Run() {
+    float lastFrameTime = 0.0f;
+    while (m_Running) {
+        float time = (float)glfwGetTime();
+        float dt = time - lastFrameTime;
+        lastFrameTime = time;
 
-void Application::RenderSplashScreen() {
-    m_Window->Clear();
-    m_ImGuiLayer->Begin();
+        // Cap dt to prevent physics explosions
+        if (dt > 0.1f) dt = 0.1f;
 
-    ImGui::SetNextWindowPos({ 0, 0 });
-    ImGui::SetNextWindowSize({ (float)m_Window->GetWidth(), (float)m_Window->GetHeight() });
-    
-    ImGui::Begin("SplashScreen", nullptr, 
-        ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoInputs | ImGuiWindowFlags_NoMove);
+        // 1. Events & Input
+        m_Window->PollEvents();
+        if (m_Window->ShouldClose())
+            m_Running = false;
 
-    // Center content
-    float windowWidth = ImGui::GetWindowWidth();
-    float windowHeight = ImGui::GetWindowHeight();
+        // 2. ImGui Start
+        m_ImGuiLayer->Begin();
 
-    // Title
-    ImGui::SetCursorPosY(windowHeight * 0.3f);
-    ImGui::PushFont(ImGui::GetIO().Fonts->Fonts[0]);
-    ImGui::SetWindowFontScale(4.0f);
-    float textWidth = ImGui::CalcTextSize("SPARK ENGINE").x;
-    ImGui::SetCursorPosX((windowWidth - textWidth) / 2.0f);
-    ImGui::TextColored({ 0.2f, 0.6f, 1.0f, 1.0f }, "SPARK ENGINE");
+        // 3. Clear window
+        m_Window->Clear();
 
-    // Version under title
-    ImGui::SetWindowFontScale(1.5f);
-    std::string verText = "Version " + std::string(SPARK_VERSION_STR);
-    float verWidth = ImGui::CalcTextSize(verText.c_str()).x;
-    ImGui::SetCursorPosX((windowWidth - verWidth) / 2.0f);
-    ImGui::TextDisabled("%s", verText.c_str());
-    ImGui::SetWindowFontScale(1.0f); // Reset scale
-    ImGui::SetWindowFontScale(1.0f);
-    ImGui::PopFont();
-
-    // Progress Bar
-    ImGui::SetCursorPosY(windowHeight * 0.6f);
-    ImGui::SetCursorPosX(windowWidth * 0.2f);
-    ImGui::ProgressBar(m_LoadingProgress, ImVec2(windowWidth * 0.6f, 30.0f));
-
-    // Status Text
-    float statusWidth = ImGui::CalcTextSize(m_LoadingStatus.c_str()).x;
-    ImGui::SetCursorPosX((windowWidth - statusWidth) / 2.0f);
-    ImGui::Text("%s", m_LoadingStatus.c_str());
-
-    // Verbose Log (only if enabled)
-    if (Spark::Log::IsVerbose()) {
-        ImGui::SetCursorPosY(windowHeight * 0.75f);
-        ImGui::BeginChild("LoadingLog", { windowWidth * 0.8f, 100.0f }, true);
-        const auto& messages = Spark::Log::GetMessages();
-        int start = std::max(0, (int)messages.size() - 5);
-        for (int i = start; i < (int)messages.size(); i++) {
-            ImGui::TextDisabled("[%s] %s", messages[i].Timestamp.c_str(), messages[i].Message.c_str());
+        // 4. Layer-Updates (Spiellogik, Physik, Rendering)
+        for (Layer* layer : m_LayerStack) {
+            layer->OnUpdate(dt);
         }
-        ImGui::EndChild();
+
+        // 5. ImGui-Rendering
+        for (Layer* layer : m_LayerStack) {
+            layer->OnImGuiRender();
+        }
+        m_ImGuiLayer->End();
+
+        // 6. Swap Buffers
+        m_Window->SwapBuffers();
+
+        if (m_StateChanged) {
+            HandleStateTransitions();
+        }
+    }
+}
+
+void Application::SetState(ApplicationState newState) {
+    m_NextState = newState;
+    m_StateChanged = true;
+}
+
+void Application::HandleStateTransitions() {
+    m_StateChanged = false;
+    SP_INFO("Application State Change: " + std::to_string((int)m_State) + " -> " + std::to_string((int)m_NextState));
+    
+    ApplicationState oldState = m_State;
+    m_State = m_NextState;
+
+    // Clear main layers for new state, but keep ImGui overlay
+    m_LayerStack.Clear(true);
+
+    if (m_State == ApplicationState::MAIN_MENU) {
+        PushLayer(new Spark::MainMenuLayer());
     }
 
-    ImGui::End();
-    m_ImGuiLayer->End();
-    m_Window->OnUpdate();
+    if (m_State == ApplicationState::PROJECT_LOADING) {
+        Spark::LoadingScreen::Render(*m_Window, *m_ImGuiLayer, "Loading Project Assets...", 0.5f);
+        SetState(ApplicationState::EDITOR);
+    }
+
+    if (m_State == ApplicationState::EDITOR) {
+        PushLayer(new DebuggerLayer());
+        PushLayer(new TriangleLayer());
+    }
+}
+
+void Application::LoadWindowSettings() {
+    std::ifstream stream("window_settings.yaml");
+    if (!stream.is_open()) return;
+
+    try {
+        YAML::Node data = YAML::Load(stream);
+        if (data["Window"]) {
+            int width = data["Window"]["Width"].as<int>();
+            int height = data["Window"]["Height"].as<int>();
+            if (width > 100 && height > 100) {
+                m_Window = std::make_unique<Window>(width, height, "Spark Engine");
+                SP_INFO("Loaded window settings: " + std::to_string(width) + "x" + std::to_string(height));
+            }
+        }
+    } catch (const std::exception& e) {
+        SP_ERROR("Failed to load window settings: " + std::string(e.what()));
+    }
+}
+
+void Application::SaveWindowSettings() {
+    if (!m_Window) return;
+
+    YAML::Emitter out;
+    out << YAML::BeginMap;
+    out << YAML::Key << "Window" << YAML::Value << YAML::BeginMap;
+    out << YAML::Key << "Width" << YAML::Value << m_Window->GetWidth();
+    out << YAML::Key << "Height" << YAML::Value << m_Window->GetHeight();
+    out << YAML::EndMap;
+    out << YAML::EndMap;
+
+    std::ofstream fout("window_settings.yaml");
+    fout << out.c_str();
 }
 
 Application::~Application() {
+    SaveWindowSettings();
     Spark::AudioManager::Shutdown();
     Spark::Renderer2D::Shutdown();
     Spark::AssetManager::Shutdown();
@@ -175,33 +221,6 @@ void Application::OnEvent(Event& e) {
     }
 }
 
-void Application::Run() {
-    float lastFrameTime = 0.0f;
-    while (m_Running) {
-        float time = (float)glfwGetTime();
-        float dt = time - lastFrameTime;
-        lastFrameTime = time;
-
-        // Fenster leeren
-        m_Window->Clear();
-
-        // 1. Layer-Updates (Spiellogik, Physik, Rendering)
-        for (Layer* layer : m_LayerStack) {
-            layer->OnUpdate(dt);
-        }
-
-        // 2. ImGui-Rendering
-        m_ImGuiLayer->Begin();
-        for (Layer* layer : m_LayerStack) {
-            layer->OnImGuiRender();
-        }
-        m_ImGuiLayer->End();
-
-        // Fenster aktualisieren
-        m_Window->OnUpdate();
-    }
-}
-
 void Application::Restart(bool verbose) {
     char path[1024];
     uint32_t size = sizeof(path);
@@ -233,8 +252,6 @@ void Application::Restart(bool verbose) {
 void Application::RebuildAndRestart() {
     SP_INFO("Starting Rebuild...");
     
-    // Wir nutzen system(), um auf den Abschluss des Builds zu warten
-    // Auf macOS/Linux ist es sicher, das laufende Executable zu überschreiben
     int result = std::system("python3 build.py");
     
     if (result == 0) {

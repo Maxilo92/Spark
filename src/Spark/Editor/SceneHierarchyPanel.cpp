@@ -6,6 +6,49 @@
 #include "TransformCommand.h"
 #include "AssetCommands.h"
 #include "AssetManager.h"
+#include "imgui_internal.h"
+
+static bool DrawVec2Control(const std::string& label, glm::vec2& values, float speed = 0.1f) {
+    ImGui::PushID(label.c_str());
+    ImGui::Columns(2);
+    ImGui::SetColumnWidth(0, 100);
+    ImGui::Text("%s", label.c_str());
+    ImGui::NextColumn();
+    ImGui::PushItemWidth(-1);
+    bool changed = ImGui::DragFloat2("##v2", &values.x, speed);
+    ImGui::PopItemWidth();
+    ImGui::Columns(1);
+    ImGui::PopID();
+    return changed;
+}
+
+static bool DrawFloatControl(const std::string& label, float* value, float speed = 0.1f, float min = 0.0f, float max = 0.0f) {
+    ImGui::PushID(label.c_str());
+    ImGui::Columns(2);
+    ImGui::SetColumnWidth(0, 100);
+    ImGui::Text("%s", label.c_str());
+    ImGui::NextColumn();
+    ImGui::PushItemWidth(-1);
+    bool changed = ImGui::DragFloat("##f", value, speed, min, max);
+    ImGui::PopItemWidth();
+    ImGui::Columns(1);
+    ImGui::PopID();
+    return changed;
+}
+
+static bool DrawColorControl(const std::string& label, glm::vec4& values) {
+    ImGui::PushID(label.c_str());
+    ImGui::Columns(2);
+    ImGui::SetColumnWidth(0, 100);
+    ImGui::Text("%s", label.c_str());
+    ImGui::NextColumn();
+    ImGui::PushItemWidth(-1);
+    bool changed = ImGui::ColorEdit4("##c4", &values.x);
+    ImGui::PopItemWidth();
+    ImGui::Columns(1);
+    ImGui::PopID();
+    return changed;
+}
 
 SceneHierarchyPanel::SceneHierarchyPanel(const std::shared_ptr<Scene>& scene) {
     SetContext(scene);
@@ -93,12 +136,20 @@ void SceneHierarchyPanel::DrawComponents(Entity entity) {
 
     if (entity.HasComponent<TagComponent>()) {
         auto& tag = entity.GetComponent<TagComponent>().Tag;
+        
+        ImGui::Columns(2);
+        ImGui::SetColumnWidth(0, 100);
+        ImGui::Text("Tag");
+        ImGui::NextColumn();
+        ImGui::PushItemWidth(-1);
         char buffer[256];
         memset(buffer, 0, sizeof(buffer));
         strcpy(buffer, tag.c_str());
-        if (ImGui::InputText("Tag", buffer, sizeof(buffer))) {
+        if (ImGui::InputText("##tag", buffer, sizeof(buffer))) {
             tag = std::string(buffer);
         }
+        ImGui::PopItemWidth();
+        ImGui::Columns(1);
     }
 
     ImGui::Separator();
@@ -110,22 +161,44 @@ void SceneHierarchyPanel::DrawComponents(Entity entity) {
             static glm::vec3 s_InitialTranslation, s_InitialRotation, s_InitialScale;
             
             auto DrawVec3Control = [&](const std::string& label, glm::vec3& values, float resetValue = 0.0f) {
-                if (ImGui::DragFloat3(label.c_str(), &values.x, 0.1f)) {
-                    // Während des Drags wird nichts gemacht, außer live Update
-                }
+                ImGui::PushID(label.c_str());
+                ImGui::Columns(2);
+                ImGui::SetColumnWidth(0, 100);
+                ImGui::Text("%s", label.c_str());
+                ImGui::NextColumn();
 
-                if (ImGui::IsItemActivated()) {
-                    s_InitialTranslation = transform.Translation;
-                    s_InitialRotation = transform.Rotation;
-                    s_InitialScale = transform.Scale;
-                }
+                ImGui::PushMultiItemsWidths(3, ImGui::GetContentRegionAvail().x);
+                ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2{ 0, 0 });
 
-                if (ImGui::IsItemDeactivatedAfterEdit()) {
-                    auto command = std::make_unique<Spark::TransformCommand>(entity, 
-                        s_InitialTranslation, s_InitialRotation, s_InitialScale,
-                        transform.Translation, transform.Rotation, transform.Scale);
-                    Spark::CommandHistory::ExecuteCommand(std::move(command));
-                }
+                float lineHeight = ImGui::GetFontSize() + ImGui::GetStyle().FramePadding.y * 2.0f;
+                ImVec2 buttonSize = { lineHeight + 3.0f, lineHeight };
+
+                ImGui::PushStyleColor(ImGuiCol_Button, ImVec4{ 0.8f, 0.1f, 0.15f, 1.0f });
+                if (ImGui::Button("X", buttonSize)) values.x = resetValue;
+                ImGui::PopStyleColor();
+                ImGui::SameLine();
+                ImGui::DragFloat("##X", &values.x, 0.1f, 0.0f, 0.0f, "%.2f");
+                ImGui::PopItemWidth();
+                ImGui::SameLine();
+
+                ImGui::PushStyleColor(ImGuiCol_Button, ImVec4{ 0.2f, 0.7f, 0.2f, 1.0f });
+                if (ImGui::Button("Y", buttonSize)) values.y = resetValue;
+                ImGui::PopStyleColor();
+                ImGui::SameLine();
+                ImGui::DragFloat("##Y", &values.y, 0.1f, 0.0f, 0.0f, "%.2f");
+                ImGui::PopItemWidth();
+                ImGui::SameLine();
+
+                ImGui::PushStyleColor(ImGuiCol_Button, ImVec4{ 0.1f, 0.25f, 0.8f, 1.0f });
+                if (ImGui::Button("Z", buttonSize)) values.z = resetValue;
+                ImGui::PopStyleColor();
+                ImGui::SameLine();
+                ImGui::DragFloat("##Z", &values.z, 0.1f, 0.0f, 0.0f, "%.2f");
+                ImGui::PopItemWidth();
+
+                ImGui::PopStyleVar();
+                ImGui::Columns(1);
+                ImGui::PopID();
             };
 
             DrawVec3Control("Translation", transform.Translation);
@@ -137,9 +210,14 @@ void SceneHierarchyPanel::DrawComponents(Entity entity) {
     if (entity.HasComponent<SpriteRendererComponent>()) {
         if (ImGui::CollapsingHeader("Sprite Renderer", ImGuiTreeNodeFlags_DefaultOpen)) {
             auto& src = entity.GetComponent<SpriteRendererComponent>();
-            ImGui::ColorEdit4("Color", &src.Color.x);
+            DrawColorControl("Color", src.Color);
             
-            ImGui::Text("Texture Handle: %llu", (uint64_t)src.TextureHandle);
+            ImGui::Columns(2);
+            ImGui::SetColumnWidth(0, 100);
+            ImGui::Text("Texture");
+            ImGui::NextColumn();
+            ImGui::Button("Drag Asset Here", { -1, 0 });
+            ImGui::Columns(1);
 
             if (ImGui::BeginDragDropTarget()) {
                 if (const ImGuiPayload* payload = ImGui::AcceptDragDropPayload("CONTENT_BROWSER_ITEM")) {
@@ -159,65 +237,86 @@ void SceneHierarchyPanel::DrawComponents(Entity entity) {
     if (entity.HasComponent<CircleRendererComponent>()) {
         if (ImGui::CollapsingHeader("Circle Renderer", ImGuiTreeNodeFlags_DefaultOpen)) {
             auto& crc = entity.GetComponent<CircleRendererComponent>();
-            ImGui::ColorEdit4("Color", &crc.Color.x);
-            ImGui::DragFloat("Thickness", &crc.Thickness, 0.025f, 0.0f, 1.0f);
-            ImGui::DragFloat("Fade", &crc.Fade, 0.0001f, 0.0f, 1.0f);
+            DrawColorControl("Color", crc.Color);
+            DrawFloatControl("Thickness", &crc.Thickness, 0.025f, 0.0f, 1.0f);
+            DrawFloatControl("Fade", &crc.Fade, 0.0001f, 0.0f, 1.0f);
         }
     }
 
     if (entity.HasComponent<Rigidbody2DComponent>()) {
         if (ImGui::CollapsingHeader("Rigidbody 2D", ImGuiTreeNodeFlags_DefaultOpen)) {
             auto& rb2d = entity.GetComponent<Rigidbody2DComponent>();
+            
+            ImGui::Columns(2);
+            ImGui::SetColumnWidth(0, 100);
+            ImGui::Text("Body Type");
+            ImGui::NextColumn();
+            ImGui::PushItemWidth(-1);
+            
             const char* bodyTypeStrings[] = { "Static", "Kinematic", "Dynamic" };
             const char* currentBodyTypeString = bodyTypeStrings[(int)rb2d.Type];
-            if (ImGui::BeginCombo("Body Type", currentBodyTypeString)) {
+            if (ImGui::BeginCombo("##bodytype", currentBodyTypeString)) {
                 for (int i = 0; i < 3; i++) {
                     bool isSelected = currentBodyTypeString == bodyTypeStrings[i];
                     if (ImGui::Selectable(bodyTypeStrings[i], isSelected)) {
                         rb2d.Type = (Rigidbody2DComponent::BodyType)i;
                     }
-                    if (isSelected) ImGui::SetItemDefaultFocus();
                 }
                 ImGui::EndCombo();
             }
-            ImGui::Checkbox("Fixed Rotation", &rb2d.FixedRotation);
+            ImGui::PopItemWidth();
+            ImGui::Columns(1);
+
+            ImGui::Columns(2);
+            ImGui::SetColumnWidth(0, 100);
+            ImGui::Text("Fixed Rotation");
+            ImGui::NextColumn();
+            ImGui::Checkbox("##fixedrot", &rb2d.FixedRotation);
+            ImGui::Columns(1);
         }
     }
 
     if (entity.HasComponent<BoxCollider2DComponent>()) {
         if (ImGui::CollapsingHeader("Box Collider 2D", ImGuiTreeNodeFlags_DefaultOpen)) {
             auto& bc2d = entity.GetComponent<BoxCollider2DComponent>();
-            ImGui::DragFloat2("Offset", &bc2d.Offset.x, 0.1f);
-            ImGui::DragFloat2("Size", &bc2d.Size.x, 0.1f);
-            ImGui::DragFloat("Density", &bc2d.Density, 0.01f, 0.0f, 1.0f);
-            ImGui::DragFloat("Friction", &bc2d.Friction, 0.01f, 0.0f, 1.0f);
-            ImGui::DragFloat("Restitution", &bc2d.Restitution, 0.01f, 0.0f, 1.0f);
-            ImGui::DragFloat("Restitution Threshold", &bc2d.RestitutionThreshold, 0.01f, 0.0f);
+            DrawVec2Control("Offset", bc2d.Offset);
+            DrawVec2Control("Size", bc2d.Size);
+            DrawFloatControl("Density", &bc2d.Density, 0.01f, 0.0f, 1.0f);
+            DrawFloatControl("Friction", &bc2d.Friction, 0.01f, 0.0f, 1.0f);
+            DrawFloatControl("Restitution", &bc2d.Restitution, 0.01f, 0.0f, 1.0f);
+            DrawFloatControl("Thres", &bc2d.RestitutionThreshold, 0.01f, 0.0f);
         }
     }
 
     if (entity.HasComponent<CircleCollider2DComponent>()) {
         if (ImGui::CollapsingHeader("Circle Collider 2D", ImGuiTreeNodeFlags_DefaultOpen)) {
             auto& cc2d = entity.GetComponent<CircleCollider2DComponent>();
-            ImGui::DragFloat2("Offset", &cc2d.Offset.x, 0.1f);
-            ImGui::DragFloat("Radius", &cc2d.Radius, 0.01f);
-            ImGui::DragFloat("Density", &cc2d.Density, 0.01f, 0.0f, 1.0f);
-            ImGui::DragFloat("Friction", &cc2d.Friction, 0.01f, 0.0f, 1.0f);
-            ImGui::DragFloat("Restitution", &cc2d.Restitution, 0.01f, 0.0f, 1.0f);
-            ImGui::DragFloat("Restitution Threshold", &cc2d.RestitutionThreshold, 0.01f, 0.0f);
+            DrawVec2Control("Offset", cc2d.Offset);
+            DrawFloatControl("Radius", &cc2d.Radius, 0.01f);
+            DrawFloatControl("Density", &cc2d.Density, 0.01f, 0.0f, 1.0f);
+            DrawFloatControl("Friction", &cc2d.Friction, 0.01f, 0.0f, 1.0f);
+            DrawFloatControl("Restitution", &cc2d.Restitution, 0.01f, 0.0f, 1.0f);
+            DrawFloatControl("Thres", &cc2d.RestitutionThreshold, 0.01f, 0.0f);
         }
     }
 
     if (entity.HasComponent<AudioSourceComponent>()) {
         if (ImGui::CollapsingHeader("Audio Source", ImGuiTreeNodeFlags_DefaultOpen)) {
             auto& audio = entity.GetComponent<AudioSourceComponent>();
+            
+            ImGui::Columns(2);
+            ImGui::SetColumnWidth(0, 100);
+            ImGui::Text("Path");
+            ImGui::NextColumn();
+            ImGui::PushItemWidth(-1);
             char buffer[256];
             memset(buffer, 0, sizeof(buffer));
             strcpy(buffer, audio.Path.c_str());
-            if (ImGui::InputText("Path", buffer, sizeof(buffer))) {
-                // Live update (can be wrapped in undo/redo if needed)
+            if (ImGui::InputText("##audiopath", buffer, sizeof(buffer))) {
                 audio.Path = std::string(buffer);
             }
+            ImGui::PopItemWidth();
+            ImGui::Columns(1);
 
             if (ImGui::BeginDragDropTarget()) {
                 if (const ImGuiPayload* payload = ImGui::AcceptDragDropPayload("CONTENT_BROWSER_ITEM")) {
@@ -230,18 +329,30 @@ void SceneHierarchyPanel::DrawComponents(Entity entity) {
                 ImGui::EndDragDropTarget();
             }
 
-            ImGui::DragFloat("Volume", &audio.Volume, 0.01f, 0.0f, 1.0f);
-            ImGui::DragFloat("Pitch", &audio.Pitch, 0.01f, 0.0f, 2.0f);
+            DrawFloatControl("Volume", &audio.Volume, 0.01f, 0.0f, 1.0f);
+            DrawFloatControl("Pitch", &audio.Pitch, 0.01f, 0.0f, 2.0f);
+            
+            ImGui::Columns(2);
+            ImGui::SetColumnWidth(0, 100);
+            ImGui::Text("Settings");
+            ImGui::NextColumn();
             ImGui::Checkbox("Loop", &audio.Loop);
-            ImGui::Checkbox("Play on Start", &audio.PlayOnStart);
+            ImGui::Checkbox("Start", &audio.PlayOnStart);
             ImGui::Checkbox("Spatial", &audio.Spatial);
+            ImGui::Columns(1);
         }
     }
 
     if (entity.HasComponent<AudioListenerComponent>()) {
         if (ImGui::CollapsingHeader("Audio Listener", ImGuiTreeNodeFlags_DefaultOpen)) {
             auto& listener = entity.GetComponent<AudioListenerComponent>();
-            ImGui::Checkbox("Active", &listener.Active);
+            
+            ImGui::Columns(2);
+            ImGui::SetColumnWidth(0, 100);
+            ImGui::Text("Active");
+            ImGui::NextColumn();
+            ImGui::Checkbox("##active", &listener.Active);
+            ImGui::Columns(1);
         }
     }
 

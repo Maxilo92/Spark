@@ -10,6 +10,7 @@
 #include "FileViewerPanel.h"
 #include "ConsolePanel.h"
 #include "PlanPanel.h"
+#include "ChangelogPanel.h"
 #include "Command.h"
 #include "TransformCommand.h"
 #include <memory>
@@ -41,6 +42,7 @@ private:
     Spark::FileViewerPanel m_FileViewerPanel;
     Spark::ConsolePanel m_ConsolePanel;
     PlanPanel m_PlanPanel;
+    Spark::ChangelogPanel m_ChangelogPanel;
     
     // Window Visibility
     bool m_ShowViewport = true;
@@ -51,6 +53,7 @@ private:
     bool m_ShowConsole = true;
     bool m_ShowPlanPanel = true;
     bool m_ShowSettings = true;
+    bool m_ShowChangelog = false;
 
     bool m_ShowNewProjectPopup = false;
     bool m_ShowSaveProjectPopup = false;
